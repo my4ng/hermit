@@ -35,8 +35,7 @@ impl Client<proto::NilStream> {
         })
     }
 
-    pub async fn establish_connection(self) -> Result<Client<proto::TcpStream>, Error> {
-        let stream = proto::TcpStream::connect(self.server_config.socket_addr).await?;
+    pub async fn establish_connection<S: proto::InsecureStream>(self, stream: S) -> Result<Client<S>, Error> {
         Ok(Client {
             stream,
             server_config: self.server_config,
@@ -44,8 +43,8 @@ impl Client<proto::NilStream> {
     }
 }
 
-impl Client<proto::TcpStream> {
-    pub async fn handshake(mut self) -> Result<Client<proto::SecureStream>, Error> {
+impl<S: proto::InsecureStream> Client<S> {
+    pub async fn handshake(mut self) -> Result<Client<proto::SecureStream<S>>, Error> {
         let client_nonce = crypto::generate_nonce().await?;
         let (client_private_key, public_key) = crypto::generate_ephemeral_key_pair()?;
         let client_hello_msg = proto::ClientHelloMessage {
@@ -102,13 +101,13 @@ impl Client<proto::TcpStream> {
     }
 }
 
-impl Client<proto::SecureStream> {
+impl<S: proto::InsecureStream> Client<proto::SecureStream<S>> {
     pub async fn send_resource(&mut self, request: proto::SendResourceRequest) -> Result<(), Error> {
         todo!()
     }
 }
 
-impl<S: proto::DisconnectableStream> Client<S> {
+impl<S: proto::InsecureStream> Client<S> {
     pub fn disconnect(self) -> Client<proto::NilStream> {
         Client {
             server_config: self.server_config,

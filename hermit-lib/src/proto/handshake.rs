@@ -11,6 +11,8 @@ pub(crate) const SERVER_HELLO_MSG_LEN: usize = SERVER_HELLO_MSG_HEADER_LEN
     + crypto::X25519_PUBLIC_KEY_LEN
     + crypto::ED25519_SIGNATURE_LEN;
 
+// TODO: Use CBOR for both message headers.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ClientHelloMessageHeader {
     pub version: ProtocolVersion,
