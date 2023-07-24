@@ -1,0 +1,15 @@
+[package]
+name = "hermit"
+version = "0.1.0"
+edition = "2021"
+authors = ["Michael Yang <admin@my4ng.dev>"]
+readme = "README.md"
+license = "BSD-2-Clause-Patent"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-std = "~1.12"
+anyhow = "~1.0"
+futures = "~0.3"
+# hermit-lib = { path = "../hermit-lib" }
