@@ -10,6 +10,8 @@ license = "BSD-2-Clause-Patent"
 
 [dependencies]
 async-std = { version = "~1.12", features = ["attributes"] }
+chrono = "~0.4"
+niceware = "~1.0"
 futures = "~0.3"
 tracing = "~0.1"
 thiserror = "~1.0"

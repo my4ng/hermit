@@ -1,6 +1,5 @@
 use crate::{crypto, error};
-use async_std::net::TcpStream;
-use ring::{aead, hkdf};
+use super::ProtocolVersion;
 
 pub(crate) const CLIENT_HELLO_MSG_HEADER_LEN: usize = 16;
 pub(crate) const CLIENT_HELLO_MSG_LEN: usize =
@@ -11,29 +10,6 @@ pub(crate) const SERVER_HELLO_MSG_LEN: usize = SERVER_HELLO_MSG_HEADER_LEN
     + crypto::NONCE_LEN
     + crypto::X25519_PUBLIC_KEY_LEN
     + crypto::ED25519_SIGNATURE_LEN;
-
-pub(crate) const CURRENT_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion::V0_1;
-
-pub(crate) struct ConnectionState {
-    pub stream: TcpStream,
-    pub session_secrets: Option<SessionSecrets>,
-}
-
-// TODO: use `secrecy` and `zeroize` to secure the secrets
-pub(crate) struct SessionSecrets {
-    // NOTE: kept for potential key generations
-    pub pseudorandom_key: hkdf::Prk,
-    pub master_key: Box<aead::UnboundKey>,
-    // NOTE: nonces (=== client_nonce || server_nonce) is used as the session ID
-    pub session_id: [u8; 2 * crypto::NONCE_LEN],
-}
-
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ProtocolVersion {
-    // NOTE: 0x00 RESERVED
-    V0_1 = 0x01,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ClientHelloMessageHeader {
@@ -227,7 +203,7 @@ mod test {
     async fn test_client_hello_message() {
         let test = ClientHelloMessage {
             header: ClientHelloMessageHeader {
-                version: CURRENT_PROTOCOL_VERSION,
+                version: super::super::CURRENT_PROTOCOL_VERSION,
             },
             nonce: crypto::generate_nonce().await.unwrap(),
             public_key_bytes: crypto::generate_ephemeral_key_pair()

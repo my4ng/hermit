@@ -1,16 +1,14 @@
 use std::net::SocketAddr;
 
-use crate::proto;
 use crate::crypto;
 use crate::error::Error;
+use crate::proto;
 use async_std::io::ReadExt;
 use async_std::io::WriteExt;
-use async_std::net::TcpStream;
 
-use ring::{agreement, signature};
+use ring::signature;
 
-
-struct ServerConfig {
+pub struct ServerConfig {
     socket_addr: SocketAddr,
     sig_pub_key: signature::UnparsedPublicKey<Vec<u8>>,
 }
@@ -24,128 +22,97 @@ impl ServerConfig {
     }
 }
 
-// NOTE: temporary data structure during handshake
-struct ClientSecrets {
-    client_nonce: [u8; crypto::NONCE_LEN],
-    client_private_key: agreement::EphemeralPrivateKey,
-}
-
-pub struct Client {
-    connection: Option<proto::ConnectionState>,
+pub struct Client<S: proto::Stream> {
     server_config: ServerConfig,
+    stream: S,
 }
 
-impl Client {
-    fn new(server_config: ServerConfig) -> Result<Self, Error> {
+impl Client<proto::NilStream> {
+    pub fn new(server_config: ServerConfig) -> Result<Self, Error> {
         Ok(Self {
             server_config,
-            connection: None,
+            stream: proto::NilStream,
         })
     }
 
-    async fn client_hello(&mut self) -> Result<([u8; proto::CLIENT_HELLO_MSG_LEN], ClientSecrets), Error> {
-        let client_nonce = crypto::generate_nonce().await?;
-        let (private_key, public_key) = crypto::generate_ephemeral_key_pair()?;
+    pub async fn establish_connection(self) -> Result<Client<proto::TcpStream>, Error> {
+        let stream = proto::TcpStream::connect(self.server_config.socket_addr).await?;
+        Ok(Client {
+            stream,
+            server_config: self.server_config,
+        })
+    }
+}
 
+impl Client<proto::TcpStream> {
+    pub async fn handshake(mut self) -> Result<Client<proto::SecureStream>, Error> {
+        let client_nonce = crypto::generate_nonce().await?;
+        let (client_private_key, public_key) = crypto::generate_ephemeral_key_pair()?;
         let client_hello_msg = proto::ClientHelloMessage {
             header: proto::ClientHelloMessageHeader {
                 version: proto::CURRENT_PROTOCOL_VERSION,
             },
             nonce: client_nonce,
             // SAFETY: public key has the correct length
-            public_key_bytes: <[u8; crypto::X25519_PUBLIC_KEY_LEN]>::try_from(public_key.as_ref()).unwrap(),
+            public_key_bytes: <[u8; crypto::X25519_PUBLIC_KEY_LEN]>::try_from(public_key.as_ref())
+                .unwrap(),
         };
-        let client_secrets = ClientSecrets {
+
+        self.stream
+            .write_all(&<[u8; proto::CLIENT_HELLO_MSG_LEN]>::from(client_hello_msg))
+            .await?;
+
+        let mut buffer = [0u8; proto::SERVER_HELLO_MSG_LEN];
+        self.stream.read_exact(&mut buffer).await?;
+
+        // NOTE: parse -> verify -> generate PRK -> generate master key
+
+        // Parse
+        // SAFETY: read_exact guarantees that the buffer is filled
+        let server_hello_message = proto::ServerHelloMessage::try_from(buffer).unwrap();
+
+        // Verify
+        let (server_public_key, nonces) = crypto::verify_server_hello(
+            server_hello_message,
             client_nonce,
-            client_private_key: private_key,
-        };
-        Ok((client_hello_msg.into(), client_secrets))
-    }
+            &self.server_config.sig_pub_key,
+        )?;
 
-    async fn establish_connection(&mut self) -> Result<(), Error> {
-        let stream = TcpStream::connect(self.server_config.socket_addr).await?;
-        self.connection = Some(proto::ConnectionState {
-            stream,
-            session_secrets: None,
-        });
-        Ok(())
-    }
+        // Generate PRK
+        let pseudorandom_key =
+            crypto::generate_pseudorandom_key(client_private_key, server_public_key, &nonces)?;
 
-    async fn handshake(&mut self) -> Result<(), Error> {
-        match self.connection {
-            None => Err(Error::ConnectionNotEstablished),
-            Some(proto::ConnectionState {
-                stream: _,
-                session_secrets: None,
-            }) => {
-                let (
-                    message,
-                    ClientSecrets {
-                        client_nonce,
-                        client_private_key,
-                    },
-                ) = self.client_hello().await?;
+        // Generate master key
+        let master_key = crypto::generate_master_key(&pseudorandom_key);
 
-                // SAFETY: connection is Some
-                let connection = self.connection.as_mut().unwrap();
-                connection.stream.write_all(&message).await?;
+        let session_secrets = crypto::SessionSecrets::new(
+            pseudorandom_key,
+            master_key,
+            nonces, // NOTE: nonces === client_nonce || server_nonce
+        );
 
-                let mut buffer = [0u8; proto::SERVER_HELLO_MSG_LEN];
-                connection.stream.read_exact(&mut buffer).await?;
-
-                // NOTE: parse -> verify -> generate PRK -> generate master key
-
-                // Parse
-                // SAFETY: read_exact guarantees that the buffer is filled
-                let server_hello_message = proto::ServerHelloMessage::try_from(buffer).unwrap();
-
-                // Verify
-                let (server_public_key, nonces) = crypto::verify_server_hello(
-                    server_hello_message,
-                    client_nonce,
-                    &self.server_config.sig_pub_key,
-                )?;
-
-                // Generate PRK
-                let pseudorandom_key = crypto::generate_pseudorandom_key(
-                    client_private_key,
-                    server_public_key,
-                    &nonces,
-                )?;
-
-                // Generate master key
-                let master_key = crypto::generate_master_key(&pseudorandom_key);
-
-                connection.session_secrets = Some(proto::SessionSecrets {
-                    pseudorandom_key,
-                    master_key,
-                    session_id: nonces, // NOTE: nonces === client_nonce || server_nonce
-                });
-
-                Ok(())
-            }
-            _ => Err(Error::HandshakeAlreadyInitiated),
-        }
-    }
-
-    pub async fn run(&mut self) -> Result<(), Error> {
-        self.establish_connection().await?;
-        self.handshake().await?;
-        Ok(())
+        // Upgrade stream to secure
+        Ok(Client {
+            stream: proto::SecureStream {
+                stream: self.stream,
+                session_secrets,
+            },
+            server_config: self.server_config,
+        })
     }
 }
 
+impl Client<proto::SecureStream> {
+    pub async fn send_resource(&mut self, request: proto::SendResourceRequest) -> Result<(), Error> {
+        todo!()
+    }
+}
 
-#[cfg(test)]
-mod test {
-    use std::str::FromStr;
-
-    use super::*;
-
-    #[async_std::test]
-    async fn test_client_hello() {
-        let test_server_config = ServerConfig::new(SocketAddr::from_str("127.0.0.1:8080").unwrap(), b"test".to_vec());
-        let mut test_client = Client::new(test_server_config).unwrap();
-        assert_eq!(test_client.client_hello().await.unwrap().0.len(), 64);
+impl<S: proto::DisconnectableStream> Client<S> {
+    pub fn disconnect(self) -> Client<proto::NilStream> {
+        Client {
+            server_config: self.server_config,
+            stream: proto::NilStream,
+        }
     }
 }

@@ -3,6 +3,9 @@ use std::sync::OnceLock;
 use crate::{error, proto};
 use async_std::task;
 use ring::{aead, agreement, hkdf, rand, signature};
+pub(crate) use secrets::*;
+
+pub mod secrets;
 
 pub(crate) const NONCE_LEN: usize = 16;
 pub(crate) const ED25519_SIGNATURE_LEN: usize = 64;
@@ -69,7 +72,7 @@ pub(crate) fn generate_pseudorandom_key(
     server_public_key: agreement::UnparsedPublicKey<[u8; X25519_PUBLIC_KEY_LEN]>,
     // NOTE: nonces === client_nonce || server_nonce
     nonces: &[u8; 2 * NONCE_LEN],
-) -> Result<hkdf::Prk, error::CryptoError> {
+) -> Result<Box<hkdf::Prk>, error::CryptoError> {
     agreement::agree_ephemeral(
         client_private_key,
         &server_public_key,
@@ -78,7 +81,7 @@ pub(crate) fn generate_pseudorandom_key(
             let salt = hkdf::Salt::new(hkdf::HKDF_SHA256, nonces);
             Ok(salt.extract(key_material))
         },
-    )
+    ).map(Box::new)
 }
 
 pub(crate) fn generate_master_key(prk: &hkdf::Prk) -> Box<aead::UnboundKey> {
