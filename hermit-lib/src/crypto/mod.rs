@@ -1,11 +1,11 @@
+pub mod secrets;
+
 use std::sync::OnceLock;
 
-use crate::{error, proto};
 use async_std::task;
-use ring::{aead, agreement, hkdf, rand, signature};
-pub(crate) use secrets::*;
+use ring::{aead, agreement, digest, hkdf, rand, signature};
 
-pub mod secrets;
+use crate::{error, proto::{self, message}};
 
 pub(crate) const NONCE_LEN: usize = 16;
 pub(crate) const ED25519_SIGNATURE_LEN: usize = 64;
@@ -35,19 +35,21 @@ pub(crate) fn generate_ephemeral_key_pair(
     Ok((private_key, public_key))
 }
 
-pub(crate) fn generate_signature_key_pair() -> Result<signature::Ed25519KeyPair, error::CryptoError>{
+pub(crate) fn generate_signature_key_pair() -> Result<signature::Ed25519KeyPair, error::CryptoError>
+{
     let rng = SYSTEM_RANDOM.get_or_init(rand::SystemRandom::new);
     let sig_document = signature::Ed25519KeyPair::generate_pkcs8(rng)?;
-    Ok(signature::Ed25519KeyPair::from_pkcs8(sig_document.as_ref())?)
+    Ok(signature::Ed25519KeyPair::from_pkcs8(
+        sig_document.as_ref(),
+    )?)
 }
 
 pub(crate) fn verify_server_hello(
-    proto::ServerHelloMessage {
-        header: _,
+    message::ServerHelloMessage {
         nonce: server_nonce,
         public_key_bytes: server_public_key_bytes,
         signature,
-    }: proto::ServerHelloMessage,
+    }: message::ServerHelloMessage,
     client_nonce: [u8; NONCE_LEN],
     server_sig_pub_key: &signature::UnparsedPublicKey<Vec<u8>>,
 ) -> Result<(agreement::UnparsedPublicKey<[u8; 32]>, [u8; 2 * NONCE_LEN]), error::CryptoError> {
@@ -67,31 +69,63 @@ pub(crate) fn verify_server_hello(
     ))
 }
 
-pub(crate) fn generate_pseudorandom_key(
-    client_private_key: agreement::EphemeralPrivateKey,
-    server_public_key: agreement::UnparsedPublicKey<[u8; X25519_PUBLIC_KEY_LEN]>,
-    // NOTE: nonces === client_nonce || server_nonce
+fn generate_pseudorandom_key(
+    own_private_key: agreement::EphemeralPrivateKey,
+    other_public_key: agreement::UnparsedPublicKey<[u8; X25519_PUBLIC_KEY_LEN]>,
     nonces: &[u8; 2 * NONCE_LEN],
 ) -> Result<Box<hkdf::Prk>, error::CryptoError> {
     agreement::agree_ephemeral(
-        client_private_key,
-        &server_public_key,
+        own_private_key,
+        &other_public_key,
         error::CryptoError::BadServerPublicKey,
         |key_material| {
             let salt = hkdf::Salt::new(hkdf::HKDF_SHA256, nonces);
             Ok(salt.extract(key_material))
         },
-    ).map(Box::new)
+    )
+    .map(Box::new)
 }
 
-pub(crate) fn generate_master_key(prk: &hkdf::Prk) -> Box<aead::UnboundKey> {
-    let mut bytes = [0u8; AEAD_KEY_LEN];
+fn generate_master_key(prk: &hkdf::Prk, sender: &'static [u8]) -> Box<aead::UnboundKey> {
+    let mut master_key = [0u8; AEAD_KEY_LEN];
+    let info = [sender, b"master key"];
     // SAFETY: len is not too large
-    let okm = prk.expand(&[b"master key"], &aead::AES_128_GCM).unwrap();
+    let okm = prk.expand(&info, &aead::AES_128_GCM).unwrap();
     // SAFETY: bytes is the correct length
-    okm.fill(&mut bytes).unwrap();
+    okm.fill(&mut master_key).unwrap();
     // SAFETY: bytes is the correct length
-    Box::new(aead::UnboundKey::new(&aead::AES_128_GCM, &bytes).unwrap())
+    Box::new(aead::UnboundKey::new(&aead::AES_128_GCM, &master_key).unwrap())
+}
+
+// NOTE: here `aead::NONCE_LEN` is 12
+fn generate_nonce_base(nonces: &[u8; 2 * NONCE_LEN]) -> [u8; aead::NONCE_LEN] {
+    // SAFETY: output has the correct length
+    digest::digest(&digest::SHA256, nonces).as_ref()[..aead::NONCE_LEN]
+        .try_into()
+        .unwrap()
+}
+
+pub(crate) fn generate_session_secrets(
+    own_private_key: agreement::EphemeralPrivateKey,
+    other_public_key: agreement::UnparsedPublicKey<[u8; X25519_PUBLIC_KEY_LEN]>,
+    // NOTE: nonces === client_nonce || server_nonce
+    nonces: &[u8; 2 * NONCE_LEN],
+    // NOTE: whether
+    own_side: proto::Side,
+) -> Result<secrets::SessionSecrets, error::CryptoError> {
+    let (send_side_bytes, recv_side_bytes) = match own_side {
+        proto::Side::Client => (b"client", b"server"),
+        proto::Side::Server => (b"server", b"client"),
+    };
+
+    let prk = generate_pseudorandom_key(own_private_key, other_public_key, nonces)?;
+    let send_key = generate_master_key(&prk, send_side_bytes);
+    let recv_key = generate_master_key(&prk, recv_side_bytes);
+    let nonce_base = generate_nonce_base(nonces);
+
+    Ok(secrets::SessionSecrets::new(
+        prk, send_key, recv_key, nonce_base,
+    ))
 }
 
 #[cfg(test)]

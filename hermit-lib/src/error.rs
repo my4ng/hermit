@@ -1,18 +1,14 @@
-use thiserror;
 use ring;
+use thiserror;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("Cryptography error: {0}")]
+    #[error("Error performing cryptographic operations: {0}")]
     Crypto(#[from] CryptoError),
-    #[error("IO/Network error: {0}")]
+    #[error("Error in IO/Network: {0}")]
     IONetwork(#[from] async_std::io::Error),
-    #[error("Unable to initiate handshake; TCP connection not established")]
-    ConnectionNotEstablished,
-    #[error("Unable to initiate handshake; handshake already initiated")]
-    HandshakeAlreadyInitiated,
-    #[error("Message parsing error; binary: {0:?}")]
-    Parsing(Vec<u8>),
+    #[error("Error parsing message: {0}")]
+    MessageParsing(#[from] InvalidMessageError),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -37,4 +33,21 @@ impl From<ring::error::KeyRejected> for CryptoError {
     fn from(err: ring::error::KeyRejected) -> Self {
         Self::KeyRejected(err.description_())
     }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum InvalidMessageError {
+    #[error("Invalid message length: {0}")]
+    MessageLength(usize),
+    #[error("Invalid message type: {0}")]
+    MessageType(u8),
+    #[error("Invalid protocol version: {0}")]
+    ProtocolVersion(u8),
+    #[error("Invalid payload length; expected {expected}, got {actual}")]
+    PayloadLength { expected: usize, actual: usize },
+    #[error("Invalid field ({field}) content: {binary:?}")]
+    FieldContent {
+        binary: Vec<u8>,
+        field: &'static str,
+    },
 }

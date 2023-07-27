@@ -1,38 +1,65 @@
-use ring::{hkdf, aead};
+use ring::aead::{self, BoundKey};
+use ring::hkdf;
+
+pub(crate) struct NonceSequence {
+    base: [u8; aead::NONCE_LEN],
+    counter: u64,
+}
+
+impl NonceSequence {
+    pub(crate) fn new(base: &[u8; aead::NONCE_LEN]) -> Self {
+        Self {
+            base: base.to_owned(),
+            counter: 0,
+        }
+    }
+
+    fn xor(base: &[u8; aead::NONCE_LEN], counter: u64) -> [u8; aead::NONCE_LEN] {
+        let mut nonce = base.to_owned();
+        for (i, byte) in counter.to_be_bytes().iter().enumerate() {
+            nonce[i + (aead::NONCE_LEN - u64::BITS as usize / 8)] ^= byte;
+        }
+        nonce
+    }
+}
+
+impl aead::NonceSequence for NonceSequence {
+    fn advance(&mut self) -> Result<aead::Nonce, ring::error::Unspecified> {
+        let nonce = Self::xor(&self.base, self.counter);
+        self.counter += 1;
+        Ok(aead::Nonce::assume_unique_for_key(nonce))
+    }
+}
 
 // TODO: use `secrecy` and `zeroize` to secure the secrets
 pub(crate) struct SessionSecrets {
     // NOTE: kept for potential key generations
     pseudorandom_key: Box<hkdf::Prk>,
-    master_key: Box<aead::UnboundKey>,
-    // NOTE: nonces (=== client_nonce || server_nonce) is used as the session ID
-    session_id: [u8; 2 * super::NONCE_LEN],
+    pub(crate) send_key: Box<aead::SealingKey<NonceSequence>>,
+    pub(crate) recv_key: Box<aead::OpeningKey<NonceSequence>>,
 }
 
 impl SessionSecrets {
-    pub(crate) fn new(
+    pub(super) fn new(
         pseudorandom_key: Box<hkdf::Prk>,
-        master_key: Box<aead::UnboundKey>,
-        session_id: [u8; 2 * super::NONCE_LEN],
+        send_key: Box<aead::UnboundKey>,
+        recv_key: Box<aead::UnboundKey>,
+        nonce_base: [u8; aead::NONCE_LEN],
     ) -> Self {
         Self {
             pseudorandom_key,
-            master_key,
-            session_id,
+            send_key: Box::new(aead::SealingKey::<NonceSequence>::new(
+                *send_key,
+                NonceSequence::new(&nonce_base),
+            )),
+            recv_key: Box::new(aead::OpeningKey::<NonceSequence>::new(
+                *recv_key,
+                NonceSequence::new(&nonce_base),
+            )),
         }
     }
-
-    // NOTE: ensure no field may be modified
-
+    
     pub(crate) fn pseudorandom_key(&self) -> &hkdf::Prk {
         &self.pseudorandom_key
-    }
-
-    pub(crate) fn master_key(&self) -> &aead::UnboundKey {
-        &self.master_key
-    }
-
-    pub(crate) fn session_id(&self) -> &[u8; 2 * super::NONCE_LEN] {
-        &self.session_id
     }
 }
