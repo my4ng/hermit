@@ -1,9 +1,8 @@
 use crate::crypto;
 use crate::error::Error;
-use crate::proto::stream::BaseStream;
 use crate::proto::{
     message,
-    stream::{NilStream, Plain, PlainStream, Secure, SecureStream},
+    stream::{BaseStream, NilStream, Plain, PlainStream, Secure, SecureStream},
     Side,
 };
 
@@ -77,7 +76,8 @@ impl Client<PlainStream> {
             server_public_key,
             &nonces,
             Side::Client,
-        ).await?;
+        )
+        .await?;
 
         // Upgrade stream to secure
         Ok(Client {
@@ -89,7 +89,9 @@ impl Client<PlainStream> {
 
 impl<T: Secure> Client<T> {
     pub async fn downgrade(mut self) -> Result<Client<T::PlainType>, Error> {
-        self.stream.send(message::DowngradeMessage {}.into()).await?;
+        self.stream
+            .send(message::DowngradeMessage {}.into())
+            .await?;
         Ok(Client {
             server_config: self.server_config,
             stream: self.stream.downgrade(),
@@ -116,16 +118,25 @@ impl<T: Plain> Client<T> {
 
 #[cfg(test)]
 mod test {
+    use async_std::{net::TcpListener, task};
+
     use super::*;
 
     // NOTE: run after command `netcat -l 8080` is executed to listen on TCP port 8080
     #[ignore]
     #[async_std::test]
     async fn test_client_new() {
+        task::spawn(async {
+            TcpListener::bind("127.0.0.1:8080")
+                .await
+                .unwrap()
+                .accept()
+                .await
+                .unwrap()
+        });
         let tcp_stream = async_std::net::TcpStream::connect("127.0.0.1:8080")
             .await
             .unwrap();
-        let client = Client::new(ServerConfig::new([0u8; 32]))
-            .connect(BaseStream::Tcp(tcp_stream));
+        let client = Client::new(ServerConfig::new([0u8; 32])).connect(BaseStream::Tcp(tcp_stream));
     }
 }

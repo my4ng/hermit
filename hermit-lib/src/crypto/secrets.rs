@@ -32,7 +32,7 @@ impl aead::NonceSequence for NonceSequence {
 }
 
 // TODO: use `secrecy` and `zeroize` to secure the secrets
-pub(crate) struct SessionSecrets {
+pub struct SessionSecrets {
     // NOTE: kept for potential key generations
     pseudorandom_key: Box<hkdf::Prk>,
     send_key: Box<aead::SealingKey<NonceSequence>>,

@@ -6,7 +6,10 @@ use quinn::{RecvStream, SendStream};
 use ring::aead;
 
 use super::message::*;
-use crate::{crypto, error};
+use crate::{
+    crypto::{self, secrets},
+    error,
+};
 
 pub struct QuicStream {
     pub(crate) send_stream: SendStream,
@@ -106,6 +109,16 @@ pub trait Plain {
     async fn recv(&mut self) -> Result<Message, error::Error>;
 }
 
+pub trait Secure: Plain {
+    type PlainType: Plain;
+    type Secrets;
+
+    fn encrypt(&mut self, secure_message: SecureMessage) -> Result<Message, error::CryptoError>;
+    fn decrypt(&mut self, message: Message) -> Result<SecureMessage, error::CryptoError>;
+    fn upgrade(stream: Self::PlainType, secrets: Self::Secrets) -> Self;
+    fn downgrade(self) -> Self::PlainType;
+}
+
 pub struct PlainStream {
     stream: BaseStream,
     header_buffer: [u8; MESSAGE_HEADER_LEN],
@@ -152,14 +165,6 @@ impl SecureStream {
     }
 }
 
-pub trait Secure: Plain {
-    type PlainType: Plain;
-
-    fn encrypt(&mut self, secure_message: SecureMessage) -> Result<Message, error::CryptoError>;
-    fn decrypt(&mut self, message: Message) -> Result<SecureMessage, error::CryptoError>;
-    fn downgrade(self) -> Self::PlainType;
-}
-
 #[async_trait::async_trait]
 impl Plain for SecureStream {
     async fn send(&mut self, msg: Message) -> Result<(), error::Error> {
@@ -172,6 +177,7 @@ impl Plain for SecureStream {
 }
 
 impl Secure for SecureStream {
+    type Secrets = secrets::SessionSecrets;
     type PlainType = PlainStream;
 
     fn encrypt(
@@ -194,31 +200,52 @@ impl Secure for SecureStream {
     fn downgrade(self) -> Self::PlainType {
         self.stream
     }
+
+    fn upgrade(stream: Self::PlainType, secrets: Self::Secrets) -> Self {
+        Self::new(stream, secrets)
+    }
 }
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use async_std::{net::TcpListener, task};
     use chrono::Duration;
     use ring::agreement;
-    use super::*;
 
     #[ignore]
     #[async_std::test]
     async fn test_encrypt() {
         task::spawn(async {
-            TcpListener::bind("127.0.0.1:8080").await.unwrap().accept().await.unwrap()
+            TcpListener::bind("127.0.0.1:8080")
+                .await
+                .unwrap()
+                .accept()
+                .await
+                .unwrap()
         });
-        let stream = PlainStream::new(BaseStream::Tcp(TcpStream::connect("127.0.0.1:8080").await.unwrap()));
+        let stream = PlainStream::new(BaseStream::Tcp(
+            TcpStream::connect("127.0.0.1:8080").await.unwrap(),
+        ));
         let private_key = crypto::generate_ephemeral_key_pair().unwrap().0;
         let public_key = crypto::generate_ephemeral_key_pair().unwrap().1;
-        let public_key = agreement::UnparsedPublicKey::new(&agreement::X25519, <[u8; 32]>::try_from(public_key.as_ref()).unwrap());
+        let public_key = agreement::UnparsedPublicKey::new(
+            &agreement::X25519,
+            <[u8; 32]>::try_from(public_key.as_ref()).unwrap(),
+        );
         let nonce1 = crypto::generate_nonce().await.unwrap();
         let nonce2 = crypto::generate_nonce().await.unwrap();
         let mut nonces: [u8; 32] = [0u8; 32];
         nonces[..16].copy_from_slice(&nonce1);
         nonces[16..].copy_from_slice(&nonce2);
-        let secrets = crypto::generate_session_secrets(private_key, public_key, &nonces, super::super::Side::Client).await.unwrap();
+        let secrets = crypto::generate_session_secrets(
+            private_key,
+            public_key,
+            &nonces,
+            super::super::Side::Client,
+        )
+        .await
+        .unwrap();
         let mut secure = SecureStream::new(stream, secrets);
 
         let secure_msg = SendResourceRequest {
