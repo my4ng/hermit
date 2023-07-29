@@ -77,7 +77,7 @@ impl Client<PlainStream> {
             server_public_key,
             &nonces,
             Side::Client,
-        )?;
+        ).await?;
 
         // Upgrade stream to secure
         Ok(Client {

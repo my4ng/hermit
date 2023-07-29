@@ -6,8 +6,6 @@ mod transfer;
 
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
-use crate::error;
-
 pub static CURRENT_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion::V0_1;
 
 #[repr(u8)]
@@ -17,6 +15,7 @@ pub enum ProtocolVersion {
     V0_1 = 0x01,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Side {
     Client,
     Server,

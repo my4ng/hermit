@@ -198,12 +198,17 @@ impl Secure for SecureStream {
 
 #[cfg(test)]
 mod test {
+    use async_std::{net::TcpListener, task};
+    use chrono::Duration;
     use ring::agreement;
     use super::*;
 
     #[ignore]
     #[async_std::test]
     async fn test_encrypt() {
+        task::spawn(async {
+            TcpListener::bind("127.0.0.1:8080").await.unwrap().accept().await.unwrap()
+        });
         let stream = PlainStream::new(BaseStream::Tcp(TcpStream::connect("127.0.0.1:8080").await.unwrap()));
         let private_key = crypto::generate_ephemeral_key_pair().unwrap().0;
         let public_key = crypto::generate_ephemeral_key_pair().unwrap().1;
@@ -213,9 +218,18 @@ mod test {
         let mut nonces: [u8; 32] = [0u8; 32];
         nonces[..16].copy_from_slice(&nonce1);
         nonces[16..].copy_from_slice(&nonce2);
-        let secrets = crypto::generate_session_secrets(private_key, public_key, &nonces, super::super::Side::Client).unwrap();
-        let secure = SecureStream::new(stream, secrets);
+        let secrets = crypto::generate_session_secrets(private_key, public_key, &nonces, super::super::Side::Client).await.unwrap();
+        let mut secure = SecureStream::new(stream, secrets);
 
-        todo!()
+        let secure_msg = SendResourceRequest {
+            resources: vec![(0, "test".to_string())],
+            expiry_duration: Some(Duration::days(3)),
+            receiver_control: None,
+        };
+
+        let msg = secure.encrypt(secure_msg.try_into().unwrap()).unwrap();
+        let msg_bytes = msg.as_ref();
+        println!("{:02X?}", msg_bytes);
+        assert_eq!(msg.payload().len(), 78);
     }
 }
