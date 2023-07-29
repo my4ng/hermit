@@ -35,8 +35,8 @@ impl aead::NonceSequence for NonceSequence {
 pub(crate) struct SessionSecrets {
     // NOTE: kept for potential key generations
     pseudorandom_key: Box<hkdf::Prk>,
-    pub(crate) send_key: Box<aead::SealingKey<NonceSequence>>,
-    pub(crate) recv_key: Box<aead::OpeningKey<NonceSequence>>,
+    send_key: Box<aead::SealingKey<NonceSequence>>,
+    recv_key: Box<aead::OpeningKey<NonceSequence>>,
 }
 
 impl SessionSecrets {
@@ -61,5 +61,13 @@ impl SessionSecrets {
     
     pub(crate) fn pseudorandom_key(&self) -> &hkdf::Prk {
         &self.pseudorandom_key
+    }
+
+    pub(crate) fn send_key(&mut self) -> &mut aead::SealingKey<NonceSequence> {
+        &mut self.send_key
+    }
+
+    pub(crate) fn recv_key(&mut self) -> &mut aead::OpeningKey<NonceSequence> {
+        &mut self.recv_key
     }
 }

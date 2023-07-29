@@ -1,6 +1,8 @@
 use ring;
 use thiserror;
 
+use crate::proto::{self, message};
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Error performing cryptographic operations: {0}")]
@@ -40,14 +42,17 @@ pub enum InvalidMessageError {
     #[error("Invalid message length: {0}")]
     MessageLength(usize),
     #[error("Invalid message type: {0}")]
-    MessageType(u8),
+    MessageType(#[from] num_enum::TryFromPrimitiveError<message::MessageType>),
+    #[error("Invalid secure message type: {0}")]
+    SecureMessageType(#[from] num_enum::TryFromPrimitiveError<message::SecureMessageType>),
     #[error("Invalid protocol version: {0}")]
-    ProtocolVersion(u8),
+    ProtocolVersion(#[from] num_enum::TryFromPrimitiveError<proto::ProtocolVersion>),
     #[error("Invalid payload length; expected {expected}, got {actual}")]
     PayloadLength { expected: usize, actual: usize },
-    #[error("Invalid field ({field}) content: {binary:?}")]
-    FieldContent {
-        binary: Vec<u8>,
-        field: &'static str,
-    },
+    #[error("Secure payload too large; size: {0}")]
+    SecurePayloadTooLarge(usize),
+    #[error("CBOR deserialization error: {0}")]
+    CborDeserialization(#[from] ciborium::de::Error<std::io::Error>),
+    #[error("CBOR serialization error: {0}")]
+    CborSerialization(#[from] ciborium::ser::Error<std::io::Error>),
 }

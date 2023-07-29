@@ -12,8 +12,10 @@ license = "BSD-2-Clause-Patent"
 async-trait = "~0.1"
 async-std = { version = "~1.12", features = ["attributes"] }
 chrono = "~0.4"
+ciborium-io = "~0.2"
 ciborium = "~0.2"
 niceware = "~1.0"
+num_enum = "~0.6"
 futures = "~0.3"
 futures-io = "~0.3"
 quinn = { version = "~0.10", features = ["async-std", "futures-io"] }

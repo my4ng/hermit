@@ -1,10 +1,9 @@
-use std::net::SocketAddr;
-
 use crate::crypto;
 use crate::error::Error;
+use crate::proto::stream::BaseStream;
 use crate::proto::{
     message,
-    stream::{Plain, *},
+    stream::{NilStream, Plain, PlainStream, Secure, SecureStream},
     Side,
 };
 
@@ -37,7 +36,7 @@ impl Client<NilStream> {
             stream: NilStream,
         }
     }
-    pub fn connect<T: BaseStream>(self: Client<NilStream>, stream: T) -> Client<PlainStream<T>> {
+    pub fn connect(self, stream: BaseStream) -> Client<PlainStream> {
         Client {
             server_config: self.server_config,
             stream: PlainStream::new(stream),
@@ -45,7 +44,7 @@ impl Client<NilStream> {
     }
 }
 
-impl<T: Plain + 'static> Client<T> {
+impl Client<PlainStream> {
     pub async fn handshake(mut self) -> Result<Client<SecureStream>, Error> {
         let client_nonce = crypto::generate_nonce().await?;
         let (client_private_key, public_key) = crypto::generate_ephemeral_key_pair()?;
@@ -60,7 +59,7 @@ impl<T: Plain + 'static> Client<T> {
         self.stream.send(client_hello_msg.into()).await?;
         let message = self.stream.recv().await?;
 
-        // NOTE: parse -> verify -> generate PRK -> generate master key
+        // NOTE: parse -> verify -> generate session secrets (e.g. symmetric keys)
 
         // Parse
         let server_hello_message = message::ServerHelloMessage::try_from(message)?;
@@ -72,6 +71,7 @@ impl<T: Plain + 'static> Client<T> {
             &self.server_config.sig_pub_key,
         )?;
 
+        // Generate session secrets
         let session_secrets = crypto::generate_session_secrets(
             client_private_key,
             server_public_key,
@@ -81,28 +81,36 @@ impl<T: Plain + 'static> Client<T> {
 
         // Upgrade stream to secure
         Ok(Client {
-            stream: SecureStream::new(Box::new(self.stream), session_secrets),
+            stream: SecureStream::new(self.stream, session_secrets),
             server_config: self.server_config,
         })
     }
 }
 
 impl<T: Secure> Client<T> {
-    // pub async fn send_resource(
-    //     &mut self,
-    //     request: SendResourceRequest,
-    // ) -> Result<(), Error> {
-    //     todo!()
-    // }
+    pub async fn downgrade(mut self) -> Result<Client<T::PlainType>, Error> {
+        self.stream.send(message::DowngradeMessage {}.into()).await?;
+        Ok(Client {
+            server_config: self.server_config,
+            stream: self.stream.downgrade(),
+        })
+    }
+
+    pub async fn send_resource(&mut self) -> Result<(), Error> {
+        todo!()
+    }
 }
 
+// NOTE: for both PlainStream and SecureStream
 impl<T: Plain> Client<T> {
-    pub fn disconnect(self) -> Client<NilStream> {
-        Client {
+    pub async fn disconnect(mut self) -> Result<Client<NilStream>, Error> {
+        self.stream
+            .send(message::DisconnectMessage {}.into())
+            .await?;
+        Ok(Client {
             server_config: self.server_config,
-            // NOTE: no effect if the stream is already nil
             stream: NilStream,
-        }
+        })
     }
 }
 
@@ -117,6 +125,7 @@ mod test {
         let tcp_stream = async_std::net::TcpStream::connect("127.0.0.1:8080")
             .await
             .unwrap();
-        let client = Client::new(ServerConfig::new([0u8; 32])).connect(tcp_stream);
+        let client = Client::new(ServerConfig::new([0u8; 32]))
+            .connect(BaseStream::Tcp(tcp_stream));
     }
 }
