@@ -2,7 +2,7 @@ use ring::signature;
 use serde::{Deserialize, Serialize};
 use serde_with;
 
-use crate::error::InvalidMessageError;
+use crate::{error::InvalidMessageError, secure};
 
 use super::message::*;
 
@@ -24,35 +24,20 @@ pub(crate) struct SendResourceRequest {
     pub receiver_control: Option<ReceiverControl>,
 }
 
-// TODO: Implement From and TryFrom using macros.
+// TODO: Implement TryFroms using macros.
 
-impl TryFrom<SendResourceRequest> for SecureMessage {
-    type Error = InvalidMessageError;
+secure!(SendResourceRequest, SecureMessageType::SendResourceRequest);
 
-    fn try_from(value: SendResourceRequest) -> Result<Self, Self::Error> {
-        let mut message = Self::new(SecureMessageType::SendResourceRequest);
-        ciborium::into_writer(&value, message.writer())?;
-        message.above_max_len()?;
-        Ok(message)
-    }
-}
-
-impl TryFrom<SecureMessage> for SendResourceRequest {
-    type Error = InvalidMessageError;
-
-    fn try_from(value: SecureMessage) -> Result<Self, Self::Error> {
-        ciborium::from_reader(value.payload()).map_err(InvalidMessageError::from)
-    }
-}
-
-impl Secure for SendResourceRequest {}
+// NOTE: the resource ID length is dynamic, depending on the number of active resources
+// on the server, and also the duration till the expiry time.
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
+pub struct ResourceId(Vec<u8>);
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub(crate) enum SendResourceResponse {
     Ok {
         // The resource ID is used to identify the resource in the server.
-        // It may be converted to a more memorable passphrase by the client using `niceware`.
-        id: Vec<u8>,
+        id: ResourceId,
         // The actual expiry time of the resource.
         expiry: chrono::DateTime<chrono::Utc>,
     },
@@ -61,11 +46,15 @@ pub(crate) enum SendResourceResponse {
     ResourceTooLarge,
 }
 
+secure!(SendResourceResponse, SecureMessageType::SendResourceResponse);
+
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub(crate) struct ReceiveResourceRequest {
-    pub id: Vec<u8>,
+    pub id: ResourceId,
     pub control: Option<ReceiverControl>,
 }
+
+secure!(ReceiveResourceRequest, SecureMessageType::ReceiveResourceRequest);
 
 #[serde_with::serde_as]
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
@@ -75,6 +64,8 @@ pub(crate) struct ReceiveResourceResponse {
     pub name: Vec<String>,
     pub expiry: chrono::DateTime<chrono::Utc>,
 }
+
+secure!(ReceiveResourceResponse, SecureMessageType::ReceiveResourceResponse);
 
 #[cfg(test)]
 mod test {

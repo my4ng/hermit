@@ -1,4 +1,5 @@
 mod handshake;
+mod macros;
 pub(crate) mod message;
 pub(crate) mod stream;
 mod transfer;
