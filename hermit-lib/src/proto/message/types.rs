@@ -1,3 +1,6 @@
+// Fix for rust-analyzer
+#![allow(non_upper_case_globals)]
+
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
@@ -7,6 +10,8 @@ pub enum SecureMessageType {
     SendResourceResponse = 0x02,
     ReceiveResourceRequest = 0x03,
     ReceiveResourceResponse = 0x04,
+
+    AdjustMessageLength = 0x10,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]

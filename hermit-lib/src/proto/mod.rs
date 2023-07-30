@@ -2,6 +2,7 @@ mod handshake;
 pub(crate) mod message;
 pub(crate) mod stream;
 mod transfer;
+mod util;
 
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 

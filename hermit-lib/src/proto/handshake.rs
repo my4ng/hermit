@@ -1,5 +1,5 @@
-use super::message::{PlainMessage, PlainMessageType, Plain};
-use crate::{crypto, error::InvalidMessageError, plain};
+use super::message::PlainMessageType;
+use crate::{crypto, plain};
 
 pub(crate) const CLIENT_HELLO_MSG_LEN: usize = crypto::NONCE_LEN + crypto::X25519_PUBLIC_KEY_LEN;
 pub(crate) const SERVER_HELLO_MSG_LEN: usize =
@@ -42,6 +42,7 @@ plain!(DowngradeMessage, PlainMessageType::Downgrade);
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::proto::message::PlainMessage;
 
     #[async_std::test]
     async fn test_client_hello_message() {

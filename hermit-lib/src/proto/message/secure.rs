@@ -54,7 +54,6 @@ impl From<(SecureMessage, aead::Tag)> for PlainMessage {
 
         bytes[0] = PlainMessageType::Secure.into();
         bytes[1] = CURRENT_PROTOCOL_VERSION.into();
-        // SAFETY: length <= u16::MAX
         let length = (bytes.len() - MESSAGE_HEADER_LEN) as u16;
         [bytes[2], bytes[3]] = length.to_be_bytes();
 

@@ -2,7 +2,7 @@ use ring::signature;
 use serde::{Deserialize, Serialize};
 use serde_with;
 
-use crate::{error::InvalidMessageError, secure};
+use crate::secure;
 
 use super::message::*;
 
