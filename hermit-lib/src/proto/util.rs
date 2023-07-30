@@ -21,6 +21,10 @@ impl AdjustMessageLengthRequest {
             length: (length as u16).to_be_bytes(),
         })
     }
+
+    pub(crate) fn length(&self) -> usize {
+        u16::from_be_bytes(self.length) as usize
+    }
 }
 
 plain!(AdjustMessageLengthRequest, PlainMessageType::AdjustMessageLengthRequest, 2 =>

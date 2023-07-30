@@ -121,14 +121,20 @@ pub trait Secure: Plain {
 
 pub struct PlainStream {
     stream: BaseStream,
-    header_buffer: [u8; MESSAGE_HEADER_LEN],
+    // NOTE: The length of the message is the UPPER BOUND of the 
+    // length of the header AND the payload. The actual length may
+    // be arbitrarily smaller.
+    msg_length: usize,
+    header_buffer: [u8; MSG_HEADER_LEN],
 }
 
 impl PlainStream {
     pub(crate) fn new(stream: BaseStream) -> Self {
         Self {
             stream,
-            header_buffer: [0u8; MESSAGE_HEADER_LEN],
+            // NOTE: The initial message length is set to the minimum message length.
+            msg_length: MIN_MSG_LEN,
+            header_buffer: [0u8; MSG_HEADER_LEN],
         }
     }
 }

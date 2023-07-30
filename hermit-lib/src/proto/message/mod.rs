@@ -13,7 +13,7 @@ pub(crate) use super::transfer::*;
 pub(crate) use super::util::*;
 pub(crate) use types::*;
 
-pub(crate) const MESSAGE_HEADER_LEN: usize = 4;
+pub(crate) const MSG_HEADER_LEN: usize = 4;
 
 // NOTE: All plain messages must have a fixed length <= `MIN_MSG_LEN`.
 pub(crate) const MIN_MSG_LEN: usize = (1 << 10) - 1;

@@ -3,7 +3,7 @@ use std::io::Cursor;
 use ring::aead;
 
 use crate::{error, proto::CURRENT_PROTOCOL_VERSION};
-use super::{PlainMessage, PlainMessageType, SecureMessageType, MESSAGE_HEADER_LEN, TAG_LEN};
+use super::{PlainMessage, PlainMessageType, SecureMessageType, MSG_HEADER_LEN, TAG_LEN};
 
 // LAYOUT:
 // |0         |1         |2         |3         |
@@ -21,27 +21,27 @@ pub struct SecureMessage(pub(super) Vec<u8>);
 
 impl SecureMessage {
     pub(in crate::proto) fn new(msg_type: SecureMessageType) -> Self {
-        let mut msg = Self(vec![0; 2 * MESSAGE_HEADER_LEN]);
-        msg.0[MESSAGE_HEADER_LEN] = msg_type.into();
+        let mut msg = Self(vec![0; 2 * MSG_HEADER_LEN]);
+        msg.0[MSG_HEADER_LEN] = msg_type.into();
         msg
     }
 
     pub(in crate::proto) fn writer(&mut self) -> Cursor<&mut Vec<u8>> {
         let mut cursor = Cursor::new(&mut self.0);
-        cursor.set_position(2 * MESSAGE_HEADER_LEN as u64);
+        cursor.set_position(2 * MSG_HEADER_LEN as u64);
         cursor
     }
 
     pub(in crate::proto) fn payload(&self) -> &[u8] {
-        &self.0[2 * MESSAGE_HEADER_LEN..]
+        &self.0[2 * MSG_HEADER_LEN..]
     }
 
     pub(in crate::proto) fn payload_mut(&mut self) -> &mut [u8] {
-        &mut self.0[2 * MESSAGE_HEADER_LEN..]
+        &mut self.0[2 * MSG_HEADER_LEN..]
     }
 
     pub(crate) fn secure_msg_type(&self) -> Result<SecureMessageType, error::InvalidMessageError> {
-        self.0[MESSAGE_HEADER_LEN]
+        self.0[MSG_HEADER_LEN]
             .try_into()
             .map_err(error::InvalidMessageError::from)
     }
@@ -54,7 +54,7 @@ impl From<(SecureMessage, aead::Tag)> for PlainMessage {
 
         bytes[0] = PlainMessageType::Secure.into();
         bytes[1] = CURRENT_PROTOCOL_VERSION.into();
-        let length = (bytes.len() - MESSAGE_HEADER_LEN) as u16;
+        let length = (bytes.len() - MSG_HEADER_LEN) as u16;
         [bytes[2], bytes[3]] = length.to_be_bytes();
 
         PlainMessage(bytes)
