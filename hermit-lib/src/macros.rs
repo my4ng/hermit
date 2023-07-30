@@ -7,7 +7,6 @@ macro_rules! secure {
             fn try_from(value: $message) -> Result<Self, Self::Error> {
                 let mut message = Self::new($message_type);
                 ciborium::into_writer(&value, message.writer())?;
-                message.above_max_len()?;
                 Ok(message)
             }
         }
@@ -51,17 +50,17 @@ macro_rules! plain_from_msg_helper {
 #[macro_export]
 macro_rules! plain {
     ($message:ty, $message_type:expr) => {
-        impl From<$message> for Message {
+        impl From<$message> for PlainMessage {
             fn from(_: $message) -> Self {
                 let msg = Self::new(0u16, $message_type);
                 msg
             }
         }
 
-        impl TryFrom<Message> for $message {
+        impl TryFrom<PlainMessage> for $message {
             type Error = InvalidMessageError;
 
-            fn try_from(value: Message) -> Result<Self, Self::Error> {
+            fn try_from(value: PlainMessage) -> Result<Self, Self::Error> {
                 let bytes = value.payload();
                 if bytes.len() != 0 {
                     return Err(InvalidMessageError::PayloadLength {
@@ -77,7 +76,7 @@ macro_rules! plain {
     };
 
     ($message:ty, $message_type:expr, $len:expr => $($fields:tt, $field_lens:expr);+ ) => {
-        impl From<$message> for Message {
+        impl From<$message> for PlainMessage {
             fn from(value: $message) -> Self {
                 let mut msg = Self::new($len as u16, $message_type);
                 let mut len = 0;
@@ -88,10 +87,10 @@ macro_rules! plain {
             }
         }
 
-        impl TryFrom<Message> for $message {
+        impl TryFrom<PlainMessage> for $message {
             type Error = InvalidMessageError;
 
-            fn try_from(value: Message) -> Result<Self, Self::Error> {
+            fn try_from(value: PlainMessage) -> Result<Self, Self::Error> {
                 let bytes = value.payload();
                 let mut len = 0;
 

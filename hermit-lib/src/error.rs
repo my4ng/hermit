@@ -42,15 +42,13 @@ pub enum InvalidMessageError {
     #[error("Invalid message length: {0}")]
     MessageLength(usize),
     #[error("Invalid message type: {0}")]
-    MessageType(#[from] num_enum::TryFromPrimitiveError<message::MessageType>),
+    MessageType(#[from] num_enum::TryFromPrimitiveError<message::PlainMessageType>),
     #[error("Invalid secure message type: {0}")]
     SecureMessageType(#[from] num_enum::TryFromPrimitiveError<message::SecureMessageType>),
     #[error("Invalid protocol version: {0}")]
     ProtocolVersion(#[from] num_enum::TryFromPrimitiveError<proto::ProtocolVersion>),
     #[error("Invalid payload length; expected {expected}, got {actual}")]
     PayloadLength { expected: usize, actual: usize },
-    #[error("Secure payload too large; size: {0}")]
-    SecurePayloadTooLarge(usize),
     #[error("CBOR deserialization error: {0}")]
     CborDeserialization(#[from] ciborium::de::Error<std::io::Error>),
     #[error("CBOR serialization error: {0}")]

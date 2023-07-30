@@ -11,7 +11,7 @@ pub enum SecureMessageType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
-pub enum MessageType {
+pub enum PlainMessageType {
     Secure = 0x00,
     ClientHello = 0x01,
     ServerHello = 0x02,

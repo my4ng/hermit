@@ -105,16 +105,16 @@ impl futures_io::AsyncWrite for BaseStream {
 
 #[async_trait::async_trait]
 pub trait Plain {
-    async fn send(&mut self, message: Message) -> Result<(), error::Error>;
-    async fn recv(&mut self) -> Result<Message, error::Error>;
+    async fn send(&mut self, message: PlainMessage) -> Result<(), error::Error>;
+    async fn recv(&mut self) -> Result<PlainMessage, error::Error>;
 }
 
 pub trait Secure: Plain {
     type PlainType: Plain;
     type Secrets;
 
-    fn encrypt(&mut self, secure_message: SecureMessage) -> Result<Message, error::CryptoError>;
-    fn decrypt(&mut self, message: Message) -> Result<SecureMessage, error::CryptoError>;
+    fn encrypt(&mut self, secure_message: SecureMessage) -> Result<PlainMessage, error::CryptoError>;
+    fn decrypt(&mut self, message: PlainMessage) -> Result<SecureMessage, error::CryptoError>;
     fn upgrade(stream: Self::PlainType, secrets: Self::Secrets) -> Self;
     fn downgrade(self) -> Self::PlainType;
 }
@@ -135,13 +135,13 @@ impl PlainStream {
 
 #[async_trait::async_trait]
 impl Plain for PlainStream {
-    async fn send(&mut self, msg: Message) -> Result<(), error::Error> {
+    async fn send(&mut self, msg: PlainMessage) -> Result<(), error::Error> {
         Ok(self.stream.write_all(msg.as_ref()).await?)
     }
 
-    async fn recv(&mut self) -> Result<Message, error::Error> {
+    async fn recv(&mut self) -> Result<PlainMessage, error::Error> {
         self.stream.read_exact(&mut self.header_buffer).await?;
-        let mut message = Message::raw(&self.header_buffer);
+        let mut message = PlainMessage::raw(&self.header_buffer);
         self.stream.read_exact(message.payload_mut()).await?;
         Ok(message)
     }
@@ -167,11 +167,11 @@ impl SecureStream {
 
 #[async_trait::async_trait]
 impl Plain for SecureStream {
-    async fn send(&mut self, msg: Message) -> Result<(), error::Error> {
+    async fn send(&mut self, msg: PlainMessage) -> Result<(), error::Error> {
         self.stream.send(msg).await
     }
 
-    async fn recv(&mut self) -> Result<Message, error::Error> {
+    async fn recv(&mut self) -> Result<PlainMessage, error::Error> {
         self.stream.recv().await
     }
 }
@@ -183,14 +183,14 @@ impl Secure for SecureStream {
     fn encrypt(
         &mut self,
         mut secure_message: SecureMessage,
-    ) -> Result<Message, error::CryptoError> {
+    ) -> Result<PlainMessage, error::CryptoError> {
         let tag = self
             .session_secrets
             .send_key()
             .seal_in_place_separate_tag(aead::Aad::empty(), secure_message.payload_mut())?;
-        Ok(Message::from((secure_message, tag)))
+        Ok(PlainMessage::from((secure_message, tag)))
     }
-    fn decrypt(&mut self, mut message: Message) -> Result<SecureMessage, error::CryptoError> {
+    fn decrypt(&mut self, mut message: PlainMessage) -> Result<SecureMessage, error::CryptoError> {
         self.session_secrets
             .recv_key()
             .open_in_place(aead::Aad::empty(), message.payload_mut())?;

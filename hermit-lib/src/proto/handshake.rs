@@ -1,4 +1,4 @@
-use super::message::{Message, MessageType, Plain};
+use super::message::{PlainMessage, PlainMessageType, Plain};
 use crate::{crypto, error::InvalidMessageError, plain};
 
 pub(crate) const CLIENT_HELLO_MSG_LEN: usize = crypto::NONCE_LEN + crypto::X25519_PUBLIC_KEY_LEN;
@@ -11,7 +11,7 @@ pub(crate) struct ClientHelloMessage {
     pub public_key_bytes: [u8; crypto::X25519_PUBLIC_KEY_LEN],
 }
 
-plain!(ClientHelloMessage, MessageType::ClientHello, CLIENT_HELLO_MSG_LEN => 
+plain!(ClientHelloMessage, PlainMessageType::ClientHello, CLIENT_HELLO_MSG_LEN => 
     nonce, crypto::NONCE_LEN; 
     public_key_bytes, crypto::X25519_PUBLIC_KEY_LEN
 );
@@ -23,7 +23,7 @@ pub(crate) struct ServerHelloMessage {
     pub signature: [u8; crypto::ED25519_SIGNATURE_LEN],
 }
 
-plain!(ServerHelloMessage, MessageType::ServerHello, SERVER_HELLO_MSG_LEN => 
+plain!(ServerHelloMessage, PlainMessageType::ServerHello, SERVER_HELLO_MSG_LEN => 
     nonce, crypto::NONCE_LEN; 
     public_key_bytes, crypto::X25519_PUBLIC_KEY_LEN;
     signature, crypto::ED25519_SIGNATURE_LEN
@@ -32,12 +32,12 @@ plain!(ServerHelloMessage, MessageType::ServerHello, SERVER_HELLO_MSG_LEN =>
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct DisconnectMessage {}
 
-plain!(DisconnectMessage, MessageType::Disconnect);
+plain!(DisconnectMessage, PlainMessageType::Disconnect);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct DowngradeMessage {}
 
-plain!(DowngradeMessage, MessageType::Downgrade);
+plain!(DowngradeMessage, PlainMessageType::Downgrade);
 
 #[cfg(test)]
 mod test {
@@ -54,7 +54,7 @@ mod test {
                 .try_into()
                 .unwrap(),
         };
-        let test_message = Message::from(test);
+        let test_message = PlainMessage::from(test);
         let test_from_message = ClientHelloMessage::try_from(test_message).unwrap();
         assert_eq!(test, test_from_message);
     }
@@ -88,7 +88,7 @@ mod test {
                 .unwrap(),
         };
 
-        let test_message = Message::from(test);
+        let test_message = PlainMessage::from(test);
         let test_from_message = ServerHelloMessage::try_from(test_message).unwrap();
         assert_eq!(test, test_from_message);
     }
@@ -96,7 +96,7 @@ mod test {
     #[test]
     fn test_disconnect_message() {
         let msg = DisconnectMessage {};
-        let msg_from = Message::from(msg);
+        let msg_from = PlainMessage::from(msg);
         let msg_back = DisconnectMessage::try_from(msg_from).unwrap();
         assert_eq!(msg, msg_back);
     }
