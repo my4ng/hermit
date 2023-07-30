@@ -10,8 +10,6 @@ pub enum SecureMessageType {
     SendResourceResponse = 0x02,
     ReceiveResourceRequest = 0x03,
     ReceiveResourceResponse = 0x04,
-
-    AdjustMessageLength = 0x10,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
@@ -22,4 +20,7 @@ pub enum PlainMessageType {
     ServerHello = 0x02,
     Disconnect = 0x03,
     Downgrade = 0x04,
+
+    AdjustMessageLengthRequest = 0x10,
+    AdjustMessageLengthResponse = 0x11,
 }

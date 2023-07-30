@@ -17,7 +17,7 @@ pub(crate) const MESSAGE_HEADER_LEN: usize = 4;
 
 // NOTE: All plain messages must have a fixed length <= `MIN_MSG_LEN`.
 pub(crate) const MIN_MSG_LEN: usize = (1 << 10) - 1;
-pub(crate) const MAX_NSG_LEN: usize = (1 << 15) - 1;
+pub(crate) const MAX_MSG_LEN: usize = (1 << 15) - 1;
 
 pub(super) trait Plain: TryFrom<PlainMessage> + Into<PlainMessage> {}
 

@@ -29,7 +29,6 @@ impl PlainMessage {
     // TODO: Use uninit such that the payload is not initialized
     // CAUTION: Only use this function to receive messages by filling the payload
     pub(in crate::proto) fn raw(header: &[u8; MESSAGE_HEADER_LEN]) -> Self {
-        // NOTE: length <= u16::MAX
         let length = u16::from_be_bytes([header[2], header[3]]) as usize;
         let mut msg = Self(vec![0; MESSAGE_HEADER_LEN + length]);
         msg.0[..MESSAGE_HEADER_LEN].copy_from_slice(header);
