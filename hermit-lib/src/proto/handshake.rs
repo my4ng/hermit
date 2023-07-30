@@ -1,5 +1,5 @@
 use super::message::{Message, MessageType, Plain};
-use crate::{crypto, error::InvalidMessageError};
+use crate::{crypto, error::InvalidMessageError, plain};
 
 pub(crate) const CLIENT_HELLO_MSG_LEN: usize = crypto::NONCE_LEN + crypto::X25519_PUBLIC_KEY_LEN;
 pub(crate) const SERVER_HELLO_MSG_LEN: usize =
@@ -11,44 +11,10 @@ pub(crate) struct ClientHelloMessage {
     pub public_key_bytes: [u8; crypto::X25519_PUBLIC_KEY_LEN],
 }
 
-impl From<ClientHelloMessage> for Message {
-    fn from(value: ClientHelloMessage) -> Self {
-        // SAFETY: length < MAX_PAYLOAD_LEN
-        let mut msg = Self::new(CLIENT_HELLO_MSG_LEN, MessageType::ClientHello).unwrap();
-        msg.payload_mut()[..crypto::NONCE_LEN].copy_from_slice(&value.nonce);
-        msg.payload_mut()[crypto::NONCE_LEN..].copy_from_slice(&value.public_key_bytes);
-        msg
-    }
-}
-
-impl TryFrom<Message> for ClientHelloMessage {
-    type Error = InvalidMessageError;
-
-    fn try_from(value: Message) -> Result<Self, Self::Error> {
-        let bytes = value.payload();
-
-        if bytes.len() != CLIENT_HELLO_MSG_LEN {
-            return Err(InvalidMessageError::PayloadLength {
-                expected: CLIENT_HELLO_MSG_LEN,
-                actual: bytes.len(),
-            });
-        }
-
-        // SAFETY: message has the correct length
-
-        let nonce = <[u8; crypto::NONCE_LEN]>::try_from(&bytes[..crypto::NONCE_LEN]).unwrap();
-        
-        let public_key_bytes =
-            <[u8; crypto::X25519_PUBLIC_KEY_LEN]>::try_from(&bytes[crypto::NONCE_LEN..]).unwrap();
-
-        Ok(Self {
-            nonce,
-            public_key_bytes,
-        })
-    }
-}
-
-impl Plain for ClientHelloMessage {}
+plain!(ClientHelloMessage, MessageType::ClientHello, CLIENT_HELLO_MSG_LEN => 
+    nonce, crypto::NONCE_LEN; 
+    public_key_bytes, crypto::X25519_PUBLIC_KEY_LEN
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ServerHelloMessage {
@@ -57,105 +23,21 @@ pub(crate) struct ServerHelloMessage {
     pub signature: [u8; crypto::ED25519_SIGNATURE_LEN],
 }
 
-impl From<ServerHelloMessage> for Message {
-    fn from(value: ServerHelloMessage) -> Self {
-        // SAFETY: length < MAX_PAYLOAD_LEN
-        let mut msg = Self::new(SERVER_HELLO_MSG_LEN, MessageType::ServerHello).unwrap();
-        msg.payload_mut()[..crypto::NONCE_LEN].copy_from_slice(&value.nonce);
-        msg.payload_mut()[crypto::NONCE_LEN..crypto::NONCE_LEN + crypto::X25519_PUBLIC_KEY_LEN]
-            .copy_from_slice(&value.public_key_bytes);
-        msg.payload_mut()[crypto::NONCE_LEN + crypto::X25519_PUBLIC_KEY_LEN..]
-            .copy_from_slice(&value.signature);
-        msg
-    }
-}
-
-impl TryFrom<Message> for ServerHelloMessage {
-    type Error = InvalidMessageError;
-
-    fn try_from(value: Message) -> Result<Self, Self::Error> {
-        let bytes = value.payload();
-
-        if bytes.len() != SERVER_HELLO_MSG_LEN {
-            return Err(InvalidMessageError::PayloadLength {
-                expected: SERVER_HELLO_MSG_LEN,
-                actual: bytes.len(),
-            });
-        }
-
-        // SAFETY: message has the correct length
-
-        let nonce = <[u8; crypto::NONCE_LEN]>::try_from(&bytes[..crypto::NONCE_LEN]).unwrap();
-
-        let public_key_bytes = <[u8; crypto::X25519_PUBLIC_KEY_LEN]>::try_from(
-            &bytes[crypto::NONCE_LEN..crypto::NONCE_LEN + crypto::X25519_PUBLIC_KEY_LEN],
-        )
-        .unwrap();
-
-        let signature = <[u8; crypto::ED25519_SIGNATURE_LEN]>::try_from(
-            &bytes[crypto::NONCE_LEN + crypto::X25519_PUBLIC_KEY_LEN..],
-        )
-        .unwrap();
-
-        Ok(Self {
-            nonce,
-            public_key_bytes,
-            signature,
-        })
-    }
-}
-
-impl Plain for ServerHelloMessage {}
+plain!(ServerHelloMessage, MessageType::ServerHello, SERVER_HELLO_MSG_LEN => 
+    nonce, crypto::NONCE_LEN; 
+    public_key_bytes, crypto::X25519_PUBLIC_KEY_LEN;
+    signature, crypto::ED25519_SIGNATURE_LEN
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct DisconnectMessage {}
 
-impl From<DisconnectMessage> for Message {
-    fn from(_value: DisconnectMessage) -> Self {
-        Self::new(0, MessageType::Disconnect).unwrap()
-    }
-}
-
-impl TryFrom<Message> for DisconnectMessage {
-    type Error = InvalidMessageError;
-
-    fn try_from(value: Message) -> Result<Self, Self::Error> {
-        if !value.payload().is_empty() {
-            return Err(InvalidMessageError::PayloadLength {
-                expected: 0,
-                actual: value.payload().len(),
-            });
-        }
-
-        Ok(Self {})
-    }
-}
-
-impl Plain for DisconnectMessage {}
+plain!(DisconnectMessage, MessageType::Disconnect);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct DowngradeMessage {}
 
-impl From<DowngradeMessage> for Message {
-    fn from(_value: DowngradeMessage) -> Self {
-        Self::new(0, MessageType::Downgrade).unwrap()
-    }
-}
-
-impl TryFrom<Message> for DowngradeMessage {
-    type Error = InvalidMessageError;
-
-    fn try_from(value: Message) -> Result<Self, Self::Error> {
-        if !value.payload().is_empty() {
-            return Err(InvalidMessageError::PayloadLength {
-                expected: 0,
-                actual: value.payload().len(),
-            });
-        }
-
-        Ok(Self {})
-    }
-}
+plain!(DowngradeMessage, MessageType::Downgrade);
 
 #[cfg(test)]
 mod test {
@@ -218,5 +100,4 @@ mod test {
         let msg_back = DisconnectMessage::try_from(msg_from).unwrap();
         assert_eq!(msg, msg_back);
     }
-    
 }

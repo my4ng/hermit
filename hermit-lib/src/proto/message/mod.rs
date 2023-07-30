@@ -1,12 +1,12 @@
 mod types;
 
-use std::io::Cursor;
-use ring::aead;
 pub(crate) use aead::MAX_TAG_LEN as TAG_LEN;
+use ring::aead;
+use std::io::Cursor;
 
-pub(crate) use types::*;
 pub(crate) use super::handshake::*;
 pub(crate) use super::transfer::*;
+pub(crate) use types::*;
 
 use super::{ProtocolVersion, CURRENT_PROTOCOL_VERSION};
 use crate::error;
@@ -15,7 +15,7 @@ pub(crate) const MESSAGE_HEADER_LEN: usize = 4;
 pub(crate) const MAX_PAYLOAD_LEN: usize = u16::MAX as usize;
 pub(crate) const MAX_SECURE_PAYLOAD_LEN: usize = MAX_PAYLOAD_LEN - MESSAGE_HEADER_LEN - TAG_LEN;
 
-// NOTE: All plain message lengths must be fixed and less than `MAX_PAYLOAD_LEN`. 
+// NOTE: All plain message lengths must be fixed and less than `MAX_PAYLOAD_LEN`.
 pub(super) trait Plain: TryFrom<Message> + Into<Message> {}
 
 // CAUTION: Secure messages are not allowed to be longer than `MAX_SECURE_PAYLOAD_LEN`.
@@ -42,8 +42,6 @@ impl SecureMessage {
         msg.0[MESSAGE_HEADER_LEN] = msg_type.into();
         msg
     }
-
-    // SAFETY: message is well-formed if it is created by `SecureMessage::new`
 
     pub(super) fn writer(&mut self) -> Cursor<&mut Vec<u8>> {
         let mut cursor = Cursor::new(&mut self.0);
@@ -73,13 +71,13 @@ impl From<(SecureMessage, aead::Tag)> for Message {
     fn from((secure_message, tag): (SecureMessage, aead::Tag)) -> Self {
         let mut bytes = secure_message.0;
         bytes.extend_from_slice(tag.as_ref());
-        
+
         bytes[0] = MessageType::Secure.into();
         bytes[1] = CURRENT_PROTOCOL_VERSION.into();
         // SAFETY: length <= u16::MAX
         let length = (bytes.len() - MESSAGE_HEADER_LEN) as u16;
         [bytes[2], bytes[3]] = length.to_be_bytes();
-        
+
         Message(bytes)
     }
 }
@@ -104,24 +102,25 @@ impl From<Message> for SecureMessage {
 pub struct Message(Vec<u8>);
 
 impl Message {
-    pub(super) fn new(length: usize, msg_type: MessageType) -> Result<Self, error::InvalidMessageError> {
-        let mut msg = Self(vec![0; MESSAGE_HEADER_LEN + length]);
+    pub(super) fn new(length: u16, msg_type: MessageType) -> Self {
+        let mut msg = Self(vec![0; MESSAGE_HEADER_LEN + length as usize]);
         msg.0[0] = msg_type.into();
         msg.0[1] = CURRENT_PROTOCOL_VERSION.into();
-        [msg.0[2], msg.0[3]] = (length as u16).to_be_bytes();
-        Ok(msg)
+        [msg.0[2], msg.0[3]] = length.to_be_bytes();
+        msg
     }
 
     // TODO: Use uninit such that the payload is not initialized
     // CAUTION: Only use this function to receive messages by filling the payload
     pub(super) fn raw(header: &[u8; MESSAGE_HEADER_LEN]) -> Self {
+        // NOTE: length <= u16::MAX
         let length = u16::from_be_bytes([header[2], header[3]]) as usize;
         let mut msg = Self(vec![0; MESSAGE_HEADER_LEN + length]);
         msg.0[..MESSAGE_HEADER_LEN].copy_from_slice(header);
         msg
     }
 
-    // SAFETY: message is well-formed if it is created by `Message::new`
+    // SAFETY: message is well-formed if it is created by `Message::new` or `Message::raw`
 
     pub(super) fn payload(&self) -> &[u8] {
         &self.0[MESSAGE_HEADER_LEN..]
