@@ -45,6 +45,8 @@ pub enum InvalidMessageError {
     SecureMessageType(#[from] num_enum::TryFromPrimitiveError<message::SecureMessageType>),
     #[error("Invalid protocol version: {0}")]
     ProtocolVersion(#[from] num_enum::TryFromPrimitiveError<proto::ProtocolVersion>),
+    #[error("Payload length out of valid range; length {length}")]
+    PayloadLengthOutOfRange { length: usize },
     #[error("Payload length above limit; length {length}, limit {limit}")]
     PayloadLengthAboveLimit { length: usize, limit: usize },
     #[error("Invalid payload length; expected {expected}, got {actual}")]

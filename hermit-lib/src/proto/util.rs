@@ -3,9 +3,6 @@ use serde::{Deserialize, Serialize};
 use super::message::{PlainMessageType, MIN_LEN_LIMIT, MAX_LEN_LIMIT};
 use crate::plain;
 
-// NOTE: If `length` <= current length, then the request must be accepted.
-// Otherwise, the other party may accept or reject the request. All messages
-// must conform to the new length if and only if AFTER the request has been accepted.
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub(crate) struct AdjustMessageLengthRequest {
     // NOTE: `MIN_MSG_LEN` <= `length` <= `MAX_MSG_LEN`.

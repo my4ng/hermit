@@ -29,11 +29,6 @@ impl PlainStream {
         self.len_limit
     }
 
-    // NOTE: 
-    // 1. Any decision-making should be made in the application layer, and set here.
-    // 2. A decrease in limit must be accepted.
-    // 3. The new limit should only be set after sending/receiving the accept confirmation.
-    // 4. MIN_LEN_LIMIT <= len_limit <= MAX_LEN_LIMIT
     pub(crate) fn set_len_limit(&mut self, len_limit: usize) {
         self.len_limit = len_limit.clamp(MIN_LEN_LIMIT, MAX_LEN_LIMIT);
     }
@@ -42,7 +37,9 @@ impl PlainStream {
     #[cfg(debug_assertions)]  
     fn send_check(&self, msg: &Message) -> Result<(), error::InvalidMessageError> {
         let len = msg.as_ref().len();
-        if len > self.len_limit {
+        if !(MIN_LEN_LIMIT..=MAX_LEN_LIMIT).contains(&len) {
+            return Err(error::InvalidMessageError::PayloadLengthOutOfRange { length: len });
+        } else if len > self.len_limit {
             return Err(error::InvalidMessageError::PayloadLengthAboveLimit { length: len, limit: self.len_limit });
         } else if msg.header().length() != len {
             return Err(error::InvalidMessageError::PayloadLengthMismatch { expected: msg.header().length(), actual: len });

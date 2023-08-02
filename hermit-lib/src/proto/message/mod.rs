@@ -10,12 +10,6 @@ pub(crate) use super::transfer::*;
 pub(crate) use super::util::*;
 pub(crate) use types::*;
 
-// NOTE:
-// 1. All plain messages must have a fixed length <= MIN_LEN_LIMIT.
-// 2. The limit may ONLY be increased, if a smaller buffer size is desired,
-// a new stream must be created instead, which would reset the limit back to
-// MIN_LEN_LIMIT.
-
 pub(crate) const MIN_LEN_LIMIT: usize = (1 << 10) - 1;
 pub(crate) const MAX_LEN_LIMIT: usize = (1 << 15) - 1;
 
