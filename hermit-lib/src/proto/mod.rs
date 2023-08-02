@@ -1,8 +1,7 @@
-mod handshake;
 pub(crate) mod message;
+mod plain;
+mod secure;
 pub(crate) mod stream;
-mod transfer;
-mod util;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};

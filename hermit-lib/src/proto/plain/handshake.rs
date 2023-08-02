@@ -42,7 +42,7 @@ plain!(DowngradeMessage, PlainMessageType::Downgrade);
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::proto::message::Message;
+    use super::super::message::Message;
 
     #[async_std::test]
     async fn test_client_hello_message() {

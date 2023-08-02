@@ -24,17 +24,17 @@ macro_rules! plain_from_msg_helper {
 #[macro_export]
 macro_rules! plain {
     ($message:ty, $message_type:expr) => {
-        impl From<$message> for $crate::proto::message::Message {
+        impl From<$message> for $crate::proto::plain::message::Message {
             fn from(_: $message) -> Self {
                 let msg = Self::new($message_type, Box::new([]));
                 msg
             }
         }
 
-        impl TryFrom<$crate::proto::message::Message> for $message {
+        impl TryFrom<$crate::proto::plain::message::Message> for $message {
             type Error = $crate::error::InvalidMessageError;
 
-            fn try_from(value: $crate::proto::message::Message) -> Result<Self, Self::Error> {
+            fn try_from(value: $crate::proto::plain::message::Message) -> Result<Self, Self::Error> {
                 let bytes = value.as_ref();
                 if bytes.len() != 0 {
                     return Err($crate::error::InvalidMessageError::PayloadLengthMismatch {
@@ -48,7 +48,7 @@ macro_rules! plain {
     };
 
     ($message:ty, $message_type:expr, $len:expr => $($fields:tt, $field_lens:expr);+ ) => {
-        impl From<$message> for $crate::proto::message::Message {
+        impl From<$message> for $crate::proto::plain::message::Message {
             fn from(value: $message) -> Self {
                 let mut msg = Self::new($message_type, Box::new([0; $len]));
                 let mut len = 0;
@@ -59,10 +59,10 @@ macro_rules! plain {
             }
         }
 
-        impl TryFrom<$crate::proto::message::Message> for $message {
+        impl TryFrom<$crate::proto::plain::message::Message> for $message {
             type Error = $crate::error::InvalidMessageError;
 
-            fn try_from(value: $crate::proto::message::Message) -> Result<Self, Self::Error> {
+            fn try_from(value: $crate::proto::plain::message::Message) -> Result<Self, Self::Error> {
                 let bytes = value.as_ref();
                 let mut len = 0;
 

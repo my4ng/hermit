@@ -1,10 +1,10 @@
 use crate::crypto;
 use crate::error::Error;
-use crate::proto::{
-    message,
-    stream::{BaseStream, NilStream, Plain, PlainStream, Secure, SecureStream},
-    Side,
-};
+use crate::proto::Side;
+use crate::proto::message::handshake;
+use crate::proto::stream::{PlainStream, Plain};
+use crate::proto::stream::{SecureStream, Secure};
+use crate::proto::stream::{BaseStream, NilStream};
 
 use ring::signature;
 
@@ -48,7 +48,7 @@ impl Client<PlainStream> {
         let client_nonce = crypto::generate_nonce().await?;
         let (client_private_key, public_key) = crypto::generate_ephemeral_key_pair()?;
 
-        let client_hello_msg = message::ClientHelloMessage {
+        let client_hello_msg = handshake::ClientHelloMessage {
             nonce: client_nonce,
             // SAFETY: public key has the correct length
             public_key_bytes: <[u8; crypto::X25519_PUBLIC_KEY_LEN]>::try_from(public_key.as_ref())
@@ -61,7 +61,7 @@ impl Client<PlainStream> {
         // NOTE: parse -> verify -> generate session secrets (e.g. symmetric keys)
 
         // Parse
-        let server_hello_message = message::ServerHelloMessage::try_from(message)?;
+        let server_hello_message = handshake::ServerHelloMessage::try_from(message)?;
 
         // Verify
         let (server_public_key, nonces) = crypto::verify_server_hello(
@@ -90,7 +90,7 @@ impl Client<PlainStream> {
 impl<T: Secure> Client<T> {
     pub async fn downgrade(mut self) -> Result<Client<T::PlainType>, Error> {
         self.stream
-            .send(message::DowngradeMessage {}.into())
+            .send(handshake::DowngradeMessage {}.into())
             .await?;
         Ok(Client {
             server_config: self.server_config,
@@ -107,7 +107,7 @@ impl<T: Secure> Client<T> {
 impl<T: Plain> Client<T> {
     pub async fn disconnect(mut self) -> Result<Client<NilStream>, Error> {
         self.stream
-            .send(message::DisconnectMessage {}.into())
+            .send(handshake::DisconnectMessage {}.into())
             .await?;
         Ok(Client {
             server_config: self.server_config,

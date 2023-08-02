@@ -5,10 +5,8 @@ use std::sync::OnceLock;
 use async_std::task;
 use ring::{aead, agreement, digest, hkdf, rand, signature};
 
-use crate::{
-    error,
-    proto::{self, message},
-};
+use crate::{error, proto};
+use crate::proto::message::handshake;
 
 pub(crate) const NONCE_LEN: usize = 16;
 pub(crate) const ED25519_SIGNATURE_LEN: usize = 64;
@@ -48,11 +46,11 @@ pub(crate) fn generate_signature_key_pair() -> Result<signature::Ed25519KeyPair,
 }
 
 pub(crate) fn verify_server_hello(
-    message::ServerHelloMessage {
+    handshake::ServerHelloMessage {
         nonce: server_nonce,
         public_key_bytes: server_public_key_bytes,
         signature,
-    }: message::ServerHelloMessage,
+    }: handshake::ServerHelloMessage,
     client_nonce: [u8; NONCE_LEN],
     server_sig_pub_key: &signature::UnparsedPublicKey<impl AsRef<[u8]>>,
 ) -> Result<(agreement::UnparsedPublicKey<[u8; 32]>, [u8; 2 * NONCE_LEN]), error::CryptoError> {

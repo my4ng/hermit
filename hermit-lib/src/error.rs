@@ -1,7 +1,8 @@
 use ring;
 use thiserror;
 
-use crate::proto::{self, message};
+use crate::proto::ProtocolVersion;
+use crate::proto::message::{PlainMessageType, SecureMessageType};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -40,11 +41,11 @@ impl From<ring::error::KeyRejected> for CryptoError {
 #[derive(thiserror::Error, Debug)]
 pub enum InvalidMessageError {
     #[error("Invalid message type: {0}")]
-    MessageType(#[from] num_enum::TryFromPrimitiveError<message::PlainMessageType>),
+    MessageType(#[from] num_enum::TryFromPrimitiveError<PlainMessageType>),
     #[error("Invalid secure message type: {0}")]
-    SecureMessageType(#[from] num_enum::TryFromPrimitiveError<message::SecureMessageType>),
+    SecureMessageType(#[from] num_enum::TryFromPrimitiveError<SecureMessageType>),
     #[error("Invalid protocol version: {0}")]
-    ProtocolVersion(#[from] num_enum::TryFromPrimitiveError<proto::ProtocolVersion>),
+    ProtocolVersion(#[from] num_enum::TryFromPrimitiveError<ProtocolVersion>),
     #[error("Payload length out of valid range; length {length}")]
     PayloadLengthOutOfRange { length: usize },
     #[error("Payload length above limit; length {length}, limit {limit}")]

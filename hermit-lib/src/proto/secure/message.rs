@@ -1,9 +1,25 @@
+// Fix for rust-analyzer
+#![allow(non_upper_case_globals)]
+
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use ciborium_io::Write;
 use serde::{ser, de, Deserialize, Serialize};
 
-use crate::{error, proto::{stream::SecureStream, ProtocolVersion}};
+use crate::{error, proto::ProtocolVersion};
+use super::stream::SecureStream;
 
-use super::SecureMessageType;
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive, Deserialize, Serialize,
+)]
+#[repr(u8)]
+#[non_exhaustive]
+pub enum SecureMessageType {
+    SendResourceRequest = 0x01,
+    SendResourceResponse = 0x02,
+    ReceiveResourceRequest = 0x03,
+    ReceiveResourceResponse = 0x04,
+}
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub(in crate::proto) struct Header {

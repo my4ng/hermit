@@ -1,8 +1,9 @@
 use async_std::io::prelude::*;
 
-use super::BaseStream;
+use super::message::Message;
 use crate::error;
-use crate::proto::message::{Message, MIN_LEN_LIMIT, MSG_HEADER_LEN, MAX_LEN_LIMIT};
+use crate::proto::message::{MAX_LEN_LIMIT, MIN_LEN_LIMIT, MSG_HEADER_LEN};
+use crate::proto::stream::BaseStream;
 
 #[async_trait::async_trait]
 pub trait Plain {
@@ -34,15 +35,21 @@ impl PlainStream {
     }
 
     // SANITY CHECK
-    #[cfg(debug_assertions)]  
+    #[cfg(debug_assertions)]
     fn send_check(&self, msg: &Message) -> Result<(), error::InvalidMessageError> {
         let len = msg.as_ref().len();
         if !(MIN_LEN_LIMIT..=MAX_LEN_LIMIT).contains(&len) {
             return Err(error::InvalidMessageError::PayloadLengthOutOfRange { length: len });
         } else if len > self.len_limit {
-            return Err(error::InvalidMessageError::PayloadLengthAboveLimit { length: len, limit: self.len_limit });
+            return Err(error::InvalidMessageError::PayloadLengthAboveLimit {
+                length: len,
+                limit: self.len_limit,
+            });
         } else if msg.header().length() != len {
-            return Err(error::InvalidMessageError::PayloadLengthMismatch { expected: msg.header().length(), actual: len });
+            return Err(error::InvalidMessageError::PayloadLengthMismatch {
+                expected: msg.header().length(),
+                actual: len,
+            });
         }
         Ok(())
     }

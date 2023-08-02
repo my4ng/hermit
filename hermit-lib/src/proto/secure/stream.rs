@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use async_std::task;
 
 use super::buffer::{ReadBuffer, WriteBuffer};
-use super::{Plain, PlainStream};
+use crate::proto::stream::{Plain, PlainStream};
 use crate::proto::message::Message;
 use crate::{crypto::secrets, error};
 

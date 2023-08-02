@@ -1,14 +1,10 @@
-mod buffer;
-mod plain;
-mod secure;
-
 use std::pin::Pin;
 
 pub use async_std::net::TcpStream;
 use quinn::{RecvStream, SendStream};
 
-pub use plain::*;
-pub use secure::*;
+pub(crate) use crate::proto::plain::stream::{Plain, PlainStream};
+pub(crate) use crate::proto::secure::stream::{Secure, SecureStream};
 
 pub struct QuicStream {
     pub(crate) send_stream: SendStream,
@@ -104,13 +100,8 @@ impl futures_io::AsyncWrite for BaseStream {
 
 #[cfg(test)]
 mod test {
-    use crate::{
-        crypto::{self, NONCE_LEN, SIGNED_CONTENT_LEN},
-        proto::{
-            handshake::{ClientHelloMessage, ServerHelloMessage},
-            transfer::{ReceiverControl, SendResourceRequest}, Side, message::Secure,
-        },
-    };
+    // TODO: Fix this mess by using a proto::prelude module.
+    use crate::{crypto::{self, SIGNED_CONTENT_LEN, NONCE_LEN}, proto::{plain::{stream::{PlainStream, Plain}, handshake::{ClientHelloMessage, ServerHelloMessage}}, Side, secure::{stream::SecureStream, transfer::{SendResourceRequest, ReceiverControl}, message::Secure}}};
 
     use super::*;
     use async_std::{net::TcpListener, task};
@@ -160,7 +151,7 @@ mod test {
             println!("Received msg: {:?}", msg);
         });
 
-        task::sleep(std::time::Duration::from_millis(1000)).await;
+        task::sleep(std::time::Duration::from_millis(100)).await;
 
         let mut stream = PlainStream::new(BaseStream::Tcp(
             TcpStream::connect("127.0.0.1:8080").await.unwrap(),

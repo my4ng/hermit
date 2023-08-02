@@ -2,7 +2,7 @@ use ring::aead::{self, BoundKey};
 use ring::hkdf;
 
 use crate::error;
-use crate::proto::message::{Message, TAG_LEN, PlainMessageType};
+use crate::proto::message::{Message, PlainMessageType, TAG_LEN};
 
 pub(crate) struct NonceSequence {
     base: [u8; aead::NONCE_LEN],

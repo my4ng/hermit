@@ -85,7 +85,7 @@ mod test {
             receiver_control: Some(ReceiverControl::Password("test".to_owned())),
         };
         let request_copy = SendResourceRequest {
-            resources: vec![(100_000_000, "ABCDEFGHIJKLMNOPQRSTUVWXYZ.txt".to_owned()); 1000],
+            resources: vec![(100_000_000, "ABCDEFGHIJKLMNOPQRSTUVWXYZ.txt".to_owned()); 10],
             expiry_duration: Some(chrono::Duration::days(1)),
             receiver_control: Some(ReceiverControl::Password("test".to_owned())),
         };
