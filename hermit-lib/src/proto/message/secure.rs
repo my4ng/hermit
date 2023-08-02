@@ -1,7 +1,20 @@
 use ciborium_io::Write;
-use serde::{ser, de};
+use serde::{ser, de, Deserialize, Serialize};
 
-use crate::{error, proto::stream::SecureStream};
+use crate::{error, proto::{stream::SecureStream, ProtocolVersion}};
+
+use super::SecureMessageType;
+
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
+pub(in crate::proto) struct Header {
+    pub(in crate::proto) message_type: SecureMessageType,
+    pub(in crate::proto) version: ProtocolVersion,
+    pub(in crate::proto) length: usize,
+}
+
+// TODO: Separate transport layer protocol (Plain) from application layer protocol (Secure).
+// The former uses plain bytes and a fixed-length header, while the latter uses CBOR and a
+// variable-length header.
 
 pub(in crate::proto) trait Secure: Sized + ser::Serialize + de::DeserializeOwned {
     fn send(&self, mut secure_stream: &mut SecureStream) -> Result<(), error::Error> {

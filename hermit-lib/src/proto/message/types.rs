@@ -1,10 +1,14 @@
 // Fix for rust-analyzer
 #![allow(non_upper_case_globals)]
 
-use num_enum::{TryFromPrimitive, IntoPrimitive};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive, Deserialize, Serialize,
+)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum SecureMessageType {
     SendResourceRequest = 0x01,
     SendResourceResponse = 0x02,
@@ -14,6 +18,7 @@ pub enum SecureMessageType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum PlainMessageType {
     Secure = 0x00,
     ClientHello = 0x01,
