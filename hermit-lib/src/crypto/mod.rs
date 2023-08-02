@@ -54,7 +54,7 @@ pub(crate) fn verify_server_hello(
         signature,
     }: message::ServerHelloMessage,
     client_nonce: [u8; NONCE_LEN],
-    server_sig_pub_key: &signature::UnparsedPublicKey<Vec<u8>>,
+    server_sig_pub_key: &signature::UnparsedPublicKey<impl AsRef<[u8]>>,
 ) -> Result<(agreement::UnparsedPublicKey<[u8; 32]>, [u8; 2 * NONCE_LEN]), error::CryptoError> {
     // LAYOUT: client_nonce || server_nonce || server_public_key
     let mut message = [0u8; SIGNED_CONTENT_LEN];

@@ -1,6 +1,6 @@
+mod buffer;
 mod plain;
 mod secure;
-mod buffer;
 
 use std::pin::Pin;
 
@@ -104,55 +104,99 @@ impl futures_io::AsyncWrite for BaseStream {
 
 #[cfg(test)]
 mod test {
-    use crate::{crypto, proto::transfer::SendResourceRequest};
+    use crate::{
+        crypto::{self, NONCE_LEN, SIGNED_CONTENT_LEN},
+        proto::{
+            handshake::{ClientHelloMessage, ServerHelloMessage},
+            transfer::{ReceiverControl, SendResourceRequest}, Side, message::Secure,
+        },
+    };
 
     use super::*;
-    use async_std::{net::TcpListener, task, io::ReadExt};
+    use async_std::{net::TcpListener, task};
     use chrono::Duration;
-    use ring::agreement;
+    use ring::{agreement::{self, UnparsedPublicKey}, signature};
+    use ring::signature::KeyPair;
+
 
     #[ignore]
     #[async_std::test]
     async fn test_encrypt() {
-        let join_handle = task::spawn(async {
+        let sig_key_pair = crypto::generate_signature_key_pair().unwrap();
+        let sig_pub_key = signature::UnparsedPublicKey::new(&signature::ED25519, sig_key_pair.public_key().as_ref().to_owned());
+
+        let join_handle = task::spawn(async move {
             let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
-            let (mut stream, _) = listener.accept().await.unwrap();
-            let mut buffer = Box::new([0u8; 10000]);
-            stream.read_exact(buffer.as_mut()).await.unwrap();
-            println!("{:02x?}", buffer);
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut stream = PlainStream::new(BaseStream::Tcp(stream));
+
+            let (private_key, public_key) = crypto::generate_ephemeral_key_pair().unwrap();
+            let nonce = crypto::generate_nonce().await.unwrap();
+
+            let received_msg = ClientHelloMessage::try_from(stream.recv().await.unwrap()).unwrap();
+            let mut message = [0u8; SIGNED_CONTENT_LEN];
+            message[..NONCE_LEN].copy_from_slice(&received_msg.nonce);
+            message[NONCE_LEN..2 * NONCE_LEN].copy_from_slice(&nonce);
+            message[2 * NONCE_LEN..].copy_from_slice(public_key.as_ref());
+
+            let msg = ServerHelloMessage {
+                nonce,
+                public_key_bytes: public_key.as_ref().try_into().unwrap(),
+                signature: sig_key_pair.sign(&message).as_ref().try_into().unwrap(),
+            };
+
+            stream.send(msg.into()).await.unwrap();
+
+            let secrets = crypto::generate_session_secrets(
+                private_key,
+                UnparsedPublicKey::new(&agreement::X25519, received_msg.public_key_bytes),
+                &message[..2 * NONCE_LEN].try_into().unwrap(),
+                Side::Server,
+            ).await.unwrap();
+
+            let mut stream = SecureStream::new(stream, secrets);
+
+            let msg = SendResourceRequest::recv(&mut stream).unwrap();
+            println!("Received msg: {:?}", msg);
         });
 
-        let stream = PlainStream::new(BaseStream::Tcp(
+        task::sleep(std::time::Duration::from_millis(1000)).await;
+
+        let mut stream = PlainStream::new(BaseStream::Tcp(
             TcpStream::connect("127.0.0.1:8080").await.unwrap(),
         ));
-        let private_key = crypto::generate_ephemeral_key_pair().unwrap().0;
-        let public_key = crypto::generate_ephemeral_key_pair().unwrap().1;
-        let public_key = agreement::UnparsedPublicKey::new(
-            &agreement::X25519,
-            <[u8; 32]>::try_from(public_key.as_ref()).unwrap(),
-        );
-        let nonce1 = crypto::generate_nonce().await.unwrap();
-        let nonce2 = crypto::generate_nonce().await.unwrap();
-        let mut nonces: [u8; 32] = [0u8; 32];
-        nonces[..16].copy_from_slice(&nonce1);
-        nonces[16..].copy_from_slice(&nonce2);
+
+        let (private_key, public_key) = crypto::generate_ephemeral_key_pair().unwrap();
+        let nonce = crypto::generate_nonce().await.unwrap();
+
+        let msg = ClientHelloMessage {
+            nonce,
+            public_key_bytes: <[u8; crypto::X25519_PUBLIC_KEY_LEN]>::try_from(public_key.as_ref())
+                .unwrap(),
+        };
+
+        stream.send(msg.into()).await.unwrap();
+
+        let received_msg = ServerHelloMessage::try_from(stream.recv().await.unwrap()).unwrap();
+
+        let (pub_key, nonces) = crypto::verify_server_hello(received_msg, nonce, &sig_pub_key).unwrap();
+
         let secrets = crypto::generate_session_secrets(
             private_key,
-            public_key,
+            pub_key,
             &nonces,
-            super::super::Side::Client,
-        )
-        .await
-        .unwrap();
+            Side::Client,
+        ).await.unwrap();
+
         let mut secure = SecureStream::new(stream, secrets);
 
         let secure_msg = SendResourceRequest {
-            resources: vec![(0, "test".to_string()); 10000],
+            resources: vec![(0, "test".to_string()); 1],
             expiry_duration: Some(Duration::days(3)),
-            receiver_control: None,
+            receiver_control: Some(ReceiverControl::Password("password".to_string())),
         };
-        ciborium::into_writer(&secure_msg, &mut secure).unwrap();
-        ciborium::into_writer(&secure_msg, &mut secure).unwrap();
+
+        secure_msg.send(&mut secure).unwrap();
         println!("Finished transmitting!");
 
         join_handle.await;

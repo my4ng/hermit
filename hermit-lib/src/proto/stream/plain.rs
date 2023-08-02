@@ -55,6 +55,7 @@ impl Plain for PlainStream {
             .write_all(&<[u8; MSG_HEADER_LEN]>::from(msg.header()))
             .await?;
         self.stream.write_all(msg.as_ref()).await?;
+        self.stream.flush().await?;
         Ok(())
     }
 

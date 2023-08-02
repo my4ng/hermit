@@ -52,13 +52,23 @@ pub(crate) struct ReceiveResourceRequest {
 
 impl message::Secure for ReceiveResourceRequest {}
 
-#[serde_with::serde_as]
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
-pub(crate) struct ReceiveResourceResponse {
-    // The sizes and names of the files or directories (or a combination of both) to be received.
-    pub size: Vec<u64>,
-    pub name: Vec<String>,
-    pub expiry: chrono::DateTime<chrono::Utc>,
+pub(crate) enum ReceiveResourceResponse {
+    Ok {
+        // The sizes and names of the files or directories (or a combination of both) to be received.
+        size: Vec<u64>,
+        name: Vec<String>,
+        expiry: chrono::DateTime<chrono::Utc>,
+    },
+    // The reason for the failure is not specified deliberately.
+    // Some possible reasons include:
+    // 1. The resource ID is invalid.
+    // 2. The resource has expired.
+    // 3. The resource has been deleted.
+    // 4. The resource has been received by another receiver.
+    // 5. The receiver control is invalid.
+    // 6. The receiver control is not provided.
+    Failed,
 }
 
 impl message::Secure for ReceiveResourceResponse {}
@@ -70,7 +80,7 @@ mod test {
     #[test]
     fn test_send_resource_request_serialization() {
         let request = SendResourceRequest {
-            resources: vec![(100_000_000, "ABCDEFGHIJKLMNOPQRSTUVWXYZ.txt".to_owned()); 1000],
+            resources: vec![(100_000_000, "ABCDEFGHIJKLMNOPQRSTUVWXYZ.txt".to_owned()); 10],
             expiry_duration: Some(chrono::Duration::days(1)),
             receiver_control: Some(ReceiverControl::Password("test".to_owned())),
         };
@@ -81,6 +91,8 @@ mod test {
         };
         let mut msg = Vec::new();
         ciborium::into_writer(&request, &mut msg).unwrap();
+        dbg!(msg.as_slice());
+        dbg!(msg.len());
         let deserialized = ciborium::from_reader::<SendResourceRequest, _>(msg.as_slice()).unwrap();
         assert_eq!(request_copy, deserialized);
     }

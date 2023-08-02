@@ -13,12 +13,12 @@ impl ReadBuffer {
         }
     }
 
-    pub(super) fn read<F, E>(&mut self, destination: &mut [u8], mut source: F) -> Result<(), E>
+    pub(super) fn read<F, E>(&mut self, sink: &mut [u8], mut source: F) -> Result<(), E>
     where
         F: FnMut() -> Result<Box<[u8]>, E>,
     {
-        let dst_len = destination.len();
-        let mut remaining = dst_len;
+        let sink_len = sink.len();
+        let mut remaining = sink_len;
 
         while remaining > 0 {
             if self.buffer.is_none() {
@@ -28,17 +28,16 @@ impl ReadBuffer {
             let buffer = self.buffer.as_ref().unwrap();
             // NOTE: Prevent deserializing the tag.
             let buffer_len = buffer.len() - TAG_LEN;
-            let dst_index = dst_len - remaining;
+            let sink_index = sink_len - remaining;
 
             if remaining < buffer.len() - self.index {
-                destination[dst_index..]
-                    .copy_from_slice(&buffer[self.index..self.index + remaining]);
+                sink[sink_index..].copy_from_slice(&buffer[self.index..self.index + remaining]);
 
                 self.index += remaining;
                 remaining = 0;
             } else {
                 let copy_len = buffer_len - self.index;
-                destination[dst_index..dst_index + copy_len]
+                sink[sink_index..sink_index + copy_len]
                     .copy_from_slice(&buffer[self.index..buffer_len]);
 
                 self.buffer = None;
@@ -66,7 +65,7 @@ impl WriteBuffer {
     pub(super) fn write<F, G, E>(
         &mut self,
         source: &[u8],
-        mut destination: F,
+        mut sink: F,
         len_limit: G,
     ) -> Result<(), E>
     where
@@ -88,7 +87,6 @@ impl WriteBuffer {
 
             if remaining < buffer_len - self.index {
                 buffer[self.index..self.index + remaining].copy_from_slice(&source[src_index..]);
-
                 self.index += remaining;
                 remaining = 0;
             } else {
@@ -97,7 +95,7 @@ impl WriteBuffer {
                     .copy_from_slice(&source[src_index..src_index + copy_len]);
 
                 // SAFETY: self.buffer is Some
-                destination(self.buffer.take().unwrap())?;
+                sink(self.buffer.take().unwrap())?;
                 self.buffer = None;
                 self.index = 0;
                 remaining -= copy_len;
@@ -106,7 +104,7 @@ impl WriteBuffer {
         Ok(())
     }
 
-    pub(super) fn flush<F, E>(&mut self, mut destination: F) -> Result<(), E>
+    pub(super) fn flush<F, E>(&mut self, mut sink: F) -> Result<(), E>
     where
         F: FnMut(Box<[u8]>) -> Result<(), E>,
     {
@@ -115,7 +113,7 @@ impl WriteBuffer {
             buffer.truncate(self.index + TAG_LEN);
             let truncated_buffer = buffer.into_boxed_slice();
             self.index = 0;
-            destination(truncated_buffer)?;
+            sink(truncated_buffer)?;
         }
         Ok(())
     }

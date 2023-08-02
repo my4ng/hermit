@@ -7,8 +7,8 @@ pub(crate) const SERVER_HELLO_MSG_LEN: usize =
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ClientHelloMessage {
-    pub nonce: [u8; crypto::NONCE_LEN],
-    pub public_key_bytes: [u8; crypto::X25519_PUBLIC_KEY_LEN],
+    pub(crate) nonce: [u8; crypto::NONCE_LEN],
+    pub(crate) public_key_bytes: [u8; crypto::X25519_PUBLIC_KEY_LEN],
 }
 
 plain!(ClientHelloMessage, PlainMessageType::ClientHello, CLIENT_HELLO_MSG_LEN => 
@@ -18,9 +18,9 @@ plain!(ClientHelloMessage, PlainMessageType::ClientHello, CLIENT_HELLO_MSG_LEN =
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ServerHelloMessage {
-    pub nonce: [u8; crypto::NONCE_LEN],
-    pub public_key_bytes: [u8; crypto::X25519_PUBLIC_KEY_LEN],
-    pub signature: [u8; crypto::ED25519_SIGNATURE_LEN],
+    pub(crate) nonce: [u8; crypto::NONCE_LEN],
+    pub(crate) public_key_bytes: [u8; crypto::X25519_PUBLIC_KEY_LEN],
+    pub(crate) signature: [u8; crypto::ED25519_SIGNATURE_LEN],
 }
 
 plain!(ServerHelloMessage, PlainMessageType::ServerHello, SERVER_HELLO_MSG_LEN => 

@@ -56,7 +56,7 @@ impl Secure for SecureStream {
     }
 }
 
-impl ciborium_io::Read for &mut SecureStream {
+impl ciborium_io::Read for &mut &mut SecureStream {
     type Error = error::Error;
 
     fn read_exact(&mut self, data: &mut [u8]) -> Result<(), Self::Error> {
@@ -69,7 +69,7 @@ impl ciborium_io::Read for &mut SecureStream {
     }
 }
 
-impl ciborium_io::Write for &mut SecureStream {
+impl ciborium_io::Write for &mut &mut SecureStream {
     type Error = error::Error;
 
     fn write_all(&mut self, data: &[u8]) -> Result<(), Self::Error> {
