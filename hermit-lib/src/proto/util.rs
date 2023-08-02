@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::message::{PlainMessageType, MAX_MSG_LEN, MIN_MSG_LEN};
+use super::message::{PlainMessageType, MIN_LEN_LIMIT, MAX_LEN_LIMIT};
 use crate::plain;
 
 // NOTE: If `length` <= current length, then the request must be accepted.
@@ -14,7 +14,7 @@ pub(crate) struct AdjustMessageLengthRequest {
 
 impl AdjustMessageLengthRequest {
     pub(crate) fn try_new(length: usize) -> Option<Self> {
-        if !(MIN_MSG_LEN..=MAX_MSG_LEN).contains(&length) {
+        if !(MIN_LEN_LIMIT..=MAX_LEN_LIMIT).contains(&length) {
             return None;
         }
         Some(Self {

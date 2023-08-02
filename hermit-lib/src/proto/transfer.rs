@@ -2,10 +2,6 @@ use ring::signature;
 use serde::{Deserialize, Serialize};
 use serde_with;
 
-use crate::secure;
-
-use super::message::*;
-
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub(crate) enum ReceiverControl {
     Password(String),
@@ -23,10 +19,6 @@ pub(crate) struct SendResourceRequest {
     // The control method to be used by the receiver to authenticate (if any).
     pub receiver_control: Option<ReceiverControl>,
 }
-
-// TODO: Implement TryFroms using macros.
-
-secure!(SendResourceRequest, SecureMessageType::SendResourceRequest);
 
 // NOTE: the resource ID length is dynamic, depending on the number of active resources
 // on the server, and also the duration till the expiry time.
@@ -46,15 +38,11 @@ pub(crate) enum SendResourceResponse {
     ResourceTooLarge,
 }
 
-secure!(SendResourceResponse, SecureMessageType::SendResourceResponse);
-
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub(crate) struct ReceiveResourceRequest {
     pub id: ResourceId,
     pub control: Option<ReceiverControl>,
 }
-
-secure!(ReceiveResourceRequest, SecureMessageType::ReceiveResourceRequest);
 
 #[serde_with::serde_as]
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
@@ -64,8 +52,6 @@ pub(crate) struct ReceiveResourceResponse {
     pub name: Vec<String>,
     pub expiry: chrono::DateTime<chrono::Utc>,
 }
-
-secure!(ReceiveResourceResponse, SecureMessageType::ReceiveResourceResponse);
 
 #[cfg(test)]
 mod test {
@@ -83,8 +69,9 @@ mod test {
             expiry_duration: Some(chrono::Duration::days(1)),
             receiver_control: Some(ReceiverControl::Password("test".to_owned())),
         };
-        let msg = SecureMessage::try_from(request).unwrap();
-        let deserialized = SendResourceRequest::try_from(msg).unwrap();
+        let mut msg = Vec::new();
+        ciborium::into_writer(&request, &mut msg).unwrap();
+        let deserialized = ciborium::from_reader::<SendResourceRequest, _>(msg.as_slice()).unwrap();
         assert_eq!(request_copy, deserialized);
     }
 }

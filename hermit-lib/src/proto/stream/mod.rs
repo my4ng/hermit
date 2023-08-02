@@ -1,15 +1,14 @@
+mod plain;
+mod secure;
+mod buffer;
+
 use std::pin::Pin;
 
-use async_std::io::{ReadExt, WriteExt};
 pub use async_std::net::TcpStream;
 use quinn::{RecvStream, SendStream};
-use ring::aead;
 
-use super::message::*;
-use crate::{
-    crypto::{self, secrets},
-    error,
-};
+pub use plain::*;
+pub use secure::*;
 
 pub struct QuicStream {
     pub(crate) send_stream: SendStream,
@@ -103,133 +102,26 @@ impl futures_io::AsyncWrite for BaseStream {
     }
 }
 
-#[async_trait::async_trait]
-pub trait Plain {
-    async fn send(&mut self, message: PlainMessage) -> Result<(), error::Error>;
-    async fn recv(&mut self) -> Result<PlainMessage, error::Error>;
-}
-
-pub trait Secure: Plain {
-    type PlainType: Plain;
-    type Secrets;
-
-    fn encrypt(&mut self, secure_message: SecureMessage) -> Result<PlainMessage, error::CryptoError>;
-    fn decrypt(&mut self, message: PlainMessage) -> Result<SecureMessage, error::CryptoError>;
-    fn upgrade(stream: Self::PlainType, secrets: Self::Secrets) -> Self;
-    fn downgrade(self) -> Self::PlainType;
-}
-
-pub struct PlainStream {
-    stream: BaseStream,
-    // NOTE: The length of the message is the UPPER BOUND of the 
-    // length of the header AND the payload. The actual length may
-    // be arbitrarily smaller.
-    msg_length: usize,
-    header_buffer: [u8; MSG_HEADER_LEN],
-}
-
-impl PlainStream {
-    pub(crate) fn new(stream: BaseStream) -> Self {
-        Self {
-            stream,
-            // NOTE: The initial message length is set to the minimum message length.
-            msg_length: MIN_MSG_LEN,
-            header_buffer: [0u8; MSG_HEADER_LEN],
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl Plain for PlainStream {
-    async fn send(&mut self, msg: PlainMessage) -> Result<(), error::Error> {
-        Ok(self.stream.write_all(msg.as_ref()).await?)
-    }
-
-    async fn recv(&mut self) -> Result<PlainMessage, error::Error> {
-        self.stream.read_exact(&mut self.header_buffer).await?;
-        let mut message = PlainMessage::raw(&self.header_buffer);
-        self.stream.read_exact(message.payload_mut()).await?;
-        Ok(message)
-    }
-}
-
-pub struct SecureStream {
-    // Use trait object to abstract over the underlying stream
-    stream: PlainStream,
-    session_secrets: crypto::secrets::SessionSecrets,
-}
-
-impl SecureStream {
-    pub(crate) fn new(
-        stream: PlainStream,
-        session_secrets: crypto::secrets::SessionSecrets,
-    ) -> Self {
-        Self {
-            stream,
-            session_secrets,
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl Plain for SecureStream {
-    async fn send(&mut self, msg: PlainMessage) -> Result<(), error::Error> {
-        self.stream.send(msg).await
-    }
-
-    async fn recv(&mut self) -> Result<PlainMessage, error::Error> {
-        self.stream.recv().await
-    }
-}
-
-impl Secure for SecureStream {
-    type Secrets = secrets::SessionSecrets;
-    type PlainType = PlainStream;
-
-    fn encrypt(
-        &mut self,
-        mut secure_message: SecureMessage,
-    ) -> Result<PlainMessage, error::CryptoError> {
-        let tag = self
-            .session_secrets
-            .send_key()
-            .seal_in_place_separate_tag(aead::Aad::empty(), secure_message.payload_mut())?;
-        Ok(PlainMessage::from((secure_message, tag)))
-    }
-    fn decrypt(&mut self, mut message: PlainMessage) -> Result<SecureMessage, error::CryptoError> {
-        self.session_secrets
-            .recv_key()
-            .open_in_place(aead::Aad::empty(), message.payload_mut())?;
-        Ok(SecureMessage::from(message))
-    }
-
-    fn downgrade(self) -> Self::PlainType {
-        self.stream
-    }
-
-    fn upgrade(stream: Self::PlainType, secrets: Self::Secrets) -> Self {
-        Self::new(stream, secrets)
-    }
-}
-
 #[cfg(test)]
 mod test {
+    use crate::{crypto, proto::transfer::SendResourceRequest};
+
     use super::*;
-    use async_std::{net::TcpListener, task};
+    use async_std::{net::TcpListener, task, io::ReadExt};
     use chrono::Duration;
     use ring::agreement;
 
     #[ignore]
     #[async_std::test]
     async fn test_encrypt() {
-        task::spawn(async {
-            TcpListener::bind("127.0.0.1:8080")
-                .await
-                .unwrap()
-                .accept()
-                .await
-                .unwrap()
+        let join_handle = task::spawn(async {
+            let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut buffer = Box::new([0u8; 10000]);
+            stream.read_exact(buffer.as_mut()).await.unwrap();
+            println!("{:02x?}", buffer);
         });
+
         let stream = PlainStream::new(BaseStream::Tcp(
             TcpStream::connect("127.0.0.1:8080").await.unwrap(),
         ));
@@ -255,14 +147,14 @@ mod test {
         let mut secure = SecureStream::new(stream, secrets);
 
         let secure_msg = SendResourceRequest {
-            resources: vec![(0, "test".to_string())],
+            resources: vec![(0, "test".to_string()); 10000],
             expiry_duration: Some(Duration::days(3)),
             receiver_control: None,
         };
+        ciborium::into_writer(&secure_msg, &mut secure).unwrap();
+        ciborium::into_writer(&secure_msg, &mut secure).unwrap();
+        println!("Finished transmitting!");
 
-        let msg = secure.encrypt(secure_msg.try_into().unwrap()).unwrap();
-        let msg_bytes = msg.as_ref();
-        println!("{:02X?}", msg_bytes);
-        assert_eq!(msg.payload().len(), 78);
+        join_handle.await;
     }
 }

@@ -42,7 +42,7 @@ plain!(DowngradeMessage, PlainMessageType::Downgrade);
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::proto::message::PlainMessage;
+    use crate::proto::message::Message;
 
     #[async_std::test]
     async fn test_client_hello_message() {
@@ -55,7 +55,7 @@ mod test {
                 .try_into()
                 .unwrap(),
         };
-        let test_message = PlainMessage::from(test);
+        let test_message = Message::from(test);
         let test_from_message = ClientHelloMessage::try_from(test_message).unwrap();
         assert_eq!(test, test_from_message);
     }
@@ -89,7 +89,7 @@ mod test {
                 .unwrap(),
         };
 
-        let test_message = PlainMessage::from(test);
+        let test_message = Message::from(test);
         let test_from_message = ServerHelloMessage::try_from(test_message).unwrap();
         assert_eq!(test, test_from_message);
     }
@@ -97,7 +97,7 @@ mod test {
     #[test]
     fn test_disconnect_message() {
         let msg = DisconnectMessage {};
-        let msg_from = PlainMessage::from(msg);
+        let msg_from = Message::from(msg);
         let msg_back = DisconnectMessage::try_from(msg_from).unwrap();
         assert_eq!(msg, msg_back);
     }

@@ -1,6 +1,9 @@
 use ring::aead::{self, BoundKey};
 use ring::hkdf;
 
+use crate::error;
+use crate::proto::message::{Message, TAG_LEN, PlainMessageType};
+
 pub(crate) struct NonceSequence {
     base: [u8; aead::NONCE_LEN],
     counter: u64,
@@ -35,39 +38,45 @@ impl aead::NonceSequence for NonceSequence {
 pub struct SessionSecrets {
     // NOTE: kept for potential key generations
     pseudorandom_key: Box<hkdf::Prk>,
-    send_key: Box<aead::SealingKey<NonceSequence>>,
-    recv_key: Box<aead::OpeningKey<NonceSequence>>,
+    sealing_key: Box<aead::SealingKey<NonceSequence>>,
+    opening_key: Box<aead::OpeningKey<NonceSequence>>,
 }
 
 impl SessionSecrets {
     pub(super) fn new(
         pseudorandom_key: Box<hkdf::Prk>,
-        send_key: Box<aead::UnboundKey>,
-        recv_key: Box<aead::UnboundKey>,
+        sealing_key: Box<aead::UnboundKey>,
+        opening_key: Box<aead::UnboundKey>,
         nonce_base: [u8; aead::NONCE_LEN],
     ) -> Self {
         Self {
             pseudorandom_key,
-            send_key: Box::new(aead::SealingKey::<NonceSequence>::new(
-                *send_key,
+            sealing_key: Box::new(aead::SealingKey::<NonceSequence>::new(
+                *sealing_key,
                 NonceSequence::new(&nonce_base),
             )),
-            recv_key: Box::new(aead::OpeningKey::<NonceSequence>::new(
-                *recv_key,
+            opening_key: Box::new(aead::OpeningKey::<NonceSequence>::new(
+                *opening_key,
                 NonceSequence::new(&nonce_base),
             )),
         }
     }
-    
+
     pub(crate) fn pseudorandom_key(&self) -> &hkdf::Prk {
         &self.pseudorandom_key
     }
 
-    pub(crate) fn send_key(&mut self) -> &mut aead::SealingKey<NonceSequence> {
-        &mut self.send_key
+    pub(crate) fn seal(&mut self, mut payload: Box<[u8]>) -> Result<Message, error::CryptoError> {
+        let len = payload.len();
+        let tag = self
+            .sealing_key
+            .seal_in_place_separate_tag(aead::Aad::empty(), payload[..len - TAG_LEN].as_mut())?;
+        payload[len - TAG_LEN..].copy_from_slice(tag.as_ref());
+        Ok(Message::new(PlainMessageType::Secure, payload))
     }
-
-    pub(crate) fn recv_key(&mut self) -> &mut aead::OpeningKey<NonceSequence> {
-        &mut self.recv_key
+    pub(crate) fn open(&mut self, mut message: Message) -> Result<Box<[u8]>, error::CryptoError> {
+        self.opening_key
+            .open_in_place(aead::Aad::empty(), message.as_mut())?;
+        Ok(message.into())
     }
 }
