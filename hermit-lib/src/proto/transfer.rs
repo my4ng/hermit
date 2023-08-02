@@ -2,6 +2,8 @@ use ring::signature;
 use serde::{Deserialize, Serialize};
 use serde_with;
 
+use super::message;
+
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub(crate) enum ReceiverControl {
     Password(String),
@@ -19,6 +21,8 @@ pub(crate) struct SendResourceRequest {
     // The control method to be used by the receiver to authenticate (if any).
     pub receiver_control: Option<ReceiverControl>,
 }
+
+impl message::Secure for SendResourceRequest {}
 
 // NOTE: the resource ID length is dynamic, depending on the number of active resources
 // on the server, and also the duration till the expiry time.
@@ -38,11 +42,15 @@ pub(crate) enum SendResourceResponse {
     ResourceTooLarge,
 }
 
+impl message::Secure for SendResourceResponse {}
+
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub(crate) struct ReceiveResourceRequest {
     pub id: ResourceId,
     pub control: Option<ReceiverControl>,
 }
+
+impl message::Secure for ReceiveResourceRequest {}
 
 #[serde_with::serde_as]
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
@@ -52,6 +60,8 @@ pub(crate) struct ReceiveResourceResponse {
     pub name: Vec<String>,
     pub expiry: chrono::DateTime<chrono::Utc>,
 }
+
+impl message::Secure for ReceiveResourceResponse {}
 
 #[cfg(test)]
 mod test {

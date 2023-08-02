@@ -52,7 +52,7 @@ pub enum InvalidMessageError {
     #[error("Invalid payload length; expected {expected}, got {actual}")]
     PayloadLengthMismatch { expected: usize, actual: usize },
     #[error("CBOR deserialization error: {0}")]
-    CborDeserialization(#[from] ciborium::de::Error<std::io::Error>),
+    CborDeserialization(String),
     #[error("CBOR serialization error: {0}")]
-    CborSerialization(#[from] ciborium::ser::Error<std::io::Error>),
+    CborSerialization(String),
 }

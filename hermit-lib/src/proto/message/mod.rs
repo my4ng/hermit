@@ -1,3 +1,4 @@
+mod secure;
 mod types;
 
 use crate::{
@@ -8,6 +9,7 @@ use crate::{
 pub(crate) use super::handshake::*;
 pub(crate) use super::transfer::*;
 pub(crate) use super::util::*;
+pub(crate) use secure::*;
 pub(crate) use types::*;
 
 pub(crate) const MIN_LEN_LIMIT: usize = (1 << 10) - 1;
@@ -47,7 +49,6 @@ impl MessageHeader {
         self.length
     }
 }
-
 
 impl TryFrom<&[u8; MSG_HEADER_LEN]> for MessageHeader {
     type Error = error::InvalidMessageError;
@@ -90,7 +91,9 @@ impl Message {
 
     // TODO: Use uninit such that the payload is not initialized
     // CAUTION: Only use this function to receive messages by filling the payload
-    pub(in crate::proto) fn raw(header: &[u8; MSG_HEADER_LEN]) -> Result<Self, error::InvalidMessageError> {
+    pub(in crate::proto) fn raw(
+        header: &[u8; MSG_HEADER_LEN],
+    ) -> Result<Self, error::InvalidMessageError> {
         let header = MessageHeader::try_from(header)?;
         Ok(Self {
             payload: Box::from(vec![0u8; header.length]),
