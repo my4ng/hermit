@@ -30,7 +30,7 @@ impl ReadBuffer {
             let buffer_len = buffer.len() - TAG_LEN;
             let sink_index = sink_len - remaining;
 
-            if remaining < buffer.len() - self.index {
+            if remaining < buffer_len - self.index {
                 sink[sink_index..].copy_from_slice(&buffer[self.index..self.index + remaining]);
 
                 self.index += remaining;

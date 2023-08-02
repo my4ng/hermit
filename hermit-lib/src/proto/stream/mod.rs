@@ -191,7 +191,7 @@ mod test {
         let mut secure = SecureStream::new(stream, secrets);
 
         let secure_msg = SendResourceRequest {
-            resources: vec![(0, "test".to_string()); 1],
+            resources: vec![(0, "test".to_string()); 1000],
             expiry_duration: Some(Duration::days(3)),
             receiver_control: Some(ReceiverControl::Password("password".to_string())),
         };
