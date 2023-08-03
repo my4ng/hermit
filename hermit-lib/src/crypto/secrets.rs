@@ -37,28 +37,28 @@ impl aead::NonceSequence for NonceSequence {
 // TODO: use `secrecy` and `zeroize` to secure the secrets
 pub struct SessionSecrets {
     // NOTE: kept for potential key generations
-    pseudorandom_key: Box<hkdf::Prk>,
-    sealing_key: Box<aead::SealingKey<NonceSequence>>,
-    opening_key: Box<aead::OpeningKey<NonceSequence>>,
+    pseudorandom_key: hkdf::Prk,
+    sealing_key: aead::SealingKey<NonceSequence>,
+    opening_key: aead::OpeningKey<NonceSequence>,
 }
 
 impl SessionSecrets {
     pub(super) fn new(
-        pseudorandom_key: Box<hkdf::Prk>,
-        sealing_key: Box<aead::UnboundKey>,
-        opening_key: Box<aead::UnboundKey>,
+        pseudorandom_key: hkdf::Prk,
+        sealing_key: aead::UnboundKey,
+        opening_key: aead::UnboundKey,
         nonce_base: [u8; aead::NONCE_LEN],
     ) -> Self {
         Self {
             pseudorandom_key,
-            sealing_key: Box::new(aead::SealingKey::<NonceSequence>::new(
-                *sealing_key,
+            sealing_key: aead::SealingKey::<NonceSequence>::new(
+                sealing_key,
                 NonceSequence::new(&nonce_base),
-            )),
-            opening_key: Box::new(aead::OpeningKey::<NonceSequence>::new(
-                *opening_key,
+            ),
+            opening_key: aead::OpeningKey::<NonceSequence>::new(
+                opening_key,
                 NonceSequence::new(&nonce_base),
-            )),
+            ),
         }
     }
 

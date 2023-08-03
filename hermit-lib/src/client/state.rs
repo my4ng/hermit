@@ -1,4 +1,5 @@
 use crate::crypto::secrets::SessionSecrets;
+use crate::crypto::NONCE_LEN;
 use crate::proto::stream::{Plain, PlainStream, Secure, SecureStream};
 use crate::{nil, plain, secure};
 
@@ -14,10 +15,10 @@ pub trait SecureState: PlainState {
     fn downgrade(self) -> Self::UnderlyingStream;
 }
 
-pub struct NoConnection;
+pub(super) struct NoConnection;
 nil!(NoConnection);
 
-pub struct InsecureConnection(PlainStream);
+pub(super) struct InsecureConnection(PlainStream);
 plain!(InsecureConnection);
 impl InsecureConnection {
     pub(super) fn new(_: NoConnection, stream: PlainStream) -> Self {
@@ -28,24 +29,34 @@ impl InsecureConnection {
     }
 }
 
-pub struct HandshakingConnection(PlainStream, ring::agreement::EphemeralPrivateKey);
+pub(super) struct HandshakingConnection(
+    PlainStream,
+    Option<([u8; NONCE_LEN], ring::agreement::EphemeralPrivateKey)>,
+);
 plain!(HandshakingConnection);
 impl HandshakingConnection {
-    pub(super) fn new(state: InsecureConnection, private_key: ring::agreement::EphemeralPrivateKey) -> Self {
-        Self(state.0, private_key)
+    pub(super) fn new(
+        state: InsecureConnection,
+        nonce: [u8; NONCE_LEN],
+        private_key: ring::agreement::EphemeralPrivateKey,
+    ) -> Self {
+        Self(state.0, Some((nonce, private_key)))
+    }
+    pub(super) fn nonce_private_key(&mut self) -> Option<([u8; NONCE_LEN], ring::agreement::EphemeralPrivateKey)> {
+        self.1.take()
     }
 }
 
-pub struct UpgradedConnection(SecureStream);
+pub(super) struct UpgradedConnection(SecureStream);
 secure!(UpgradedConnection);
 impl UpgradedConnection {
-    pub(super) fn new(stream: PlainStream, session_secrets: SessionSecrets) -> Self {
-        Self(SecureStream::new(stream, session_secrets))
+    pub(super) fn new(state: HandshakingConnection, session_secrets: SessionSecrets) -> Self {
+        Self(SecureStream::new(state.0, session_secrets))
     }
 }
 
-pub struct SendResourceRequested(SecureStream);
+pub(super) struct SendResourceRequested(SecureStream);
 secure!(SendResourceRequested);
 
-pub struct ReceiveResourceRequested(SecureStream);
+pub(super) struct ReceiveResourceRequested(SecureStream);
 secure!(ReceiveResourceRequested);

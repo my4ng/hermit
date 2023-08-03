@@ -7,8 +7,8 @@ pub(crate) use crate::proto::plain::stream::{Plain, PlainStream};
 pub(crate) use crate::proto::secure::stream::{Secure, SecureStream};
 
 pub struct QuicStream {
-    pub(crate) send_stream: Box<SendStream>,
-    pub(crate) recv_stream: Box<RecvStream>,
+    pub(crate) send_stream: SendStream,
+    pub(crate) recv_stream: RecvStream,
 }
 
 impl futures_io::AsyncRead for QuicStream {
@@ -117,7 +117,7 @@ mod test {
         let join_handle = task::spawn(async move {
             let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
             let (stream, _) = listener.accept().await.unwrap();
-            let mut stream = PlainStream::new(BaseStream::Tcp(stream));
+            let mut stream = PlainStream::from(BaseStream::Tcp(stream));
 
             let (private_key, public_key) = crypto::generate_ephemeral_key_pair().unwrap();
             let nonce = crypto::generate_nonce().await.unwrap();
@@ -151,7 +151,7 @@ mod test {
 
         task::sleep(std::time::Duration::from_millis(100)).await;
 
-        let mut stream = PlainStream::new(BaseStream::Tcp(
+        let mut stream = PlainStream::from(BaseStream::Tcp(
             TcpStream::connect("127.0.0.1:8080").await.unwrap(),
         ));
 

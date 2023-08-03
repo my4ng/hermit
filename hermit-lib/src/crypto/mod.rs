@@ -74,7 +74,7 @@ fn generate_pseudorandom_key(
     own_private_key: agreement::EphemeralPrivateKey,
     other_public_key: agreement::UnparsedPublicKey<[u8; X25519_PUBLIC_KEY_LEN]>,
     nonces: &[u8; 2 * NONCE_LEN],
-) -> Result<Box<hkdf::Prk>, error::CryptoError> {
+) -> Result<hkdf::Prk, error::CryptoError> {
     agreement::agree_ephemeral(
         own_private_key,
         &other_public_key,
@@ -84,10 +84,9 @@ fn generate_pseudorandom_key(
             Ok(salt.extract(key_material))
         },
     )
-    .map(Box::new)
 }
 
-fn generate_master_key(prk: &hkdf::Prk, sender: &'static [u8]) -> Box<aead::UnboundKey> {
+fn generate_master_key(prk: &hkdf::Prk, sender: &'static [u8]) -> aead::UnboundKey {
     let mut master_key = [0u8; AEAD_KEY_LEN];
     let info = [sender, b"master key"];
     // SAFETY: len is not too large
@@ -95,7 +94,7 @@ fn generate_master_key(prk: &hkdf::Prk, sender: &'static [u8]) -> Box<aead::Unbo
     // SAFETY: bytes is the correct length
     okm.fill(&mut master_key).unwrap();
     // SAFETY: bytes is the correct length
-    Box::new(aead::UnboundKey::new(&aead::AES_128_GCM, &master_key).unwrap())
+    aead::UnboundKey::new(&aead::AES_128_GCM, &master_key).unwrap()
 }
 
 // NOTE: here `aead::NONCE_LEN` is 12

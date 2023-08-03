@@ -18,15 +18,17 @@ pub struct PlainStream {
     header_buffer: [u8; MSG_HEADER_LEN],
 }
 
-impl PlainStream {
-    pub(crate) fn new(stream: BaseStream) -> Self {
+impl From<BaseStream> for PlainStream {
+    fn from(value: BaseStream) -> Self {
         Self {
-            stream,
+            stream: value,
             len_limit: MIN_LEN_LIMIT,
             header_buffer: [0u8; MSG_HEADER_LEN],
         }
     }
+}
 
+impl PlainStream {
     pub(crate) fn len_limit(&self) -> usize {
         self.len_limit
     }
