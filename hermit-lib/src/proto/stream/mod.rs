@@ -99,20 +99,39 @@ impl futures_io::AsyncWrite for BaseStream {
 #[cfg(test)]
 mod test {
     // TODO: Fix this mess by using a proto::prelude module.
-    use crate::{crypto::{self, SIGNED_CONTENT_LEN, NONCE_LEN}, proto::{plain::{stream::{PlainStream, Plain}, handshake::{ClientHelloMessage, ServerHelloMessage}}, Side, secure::{stream::SecureStream, transfer::{SendResourceRequest, ReceiverControl}, message::Secure}}};
+    use crate::{
+        crypto::{self, NONCE_LEN, SIGNED_CONTENT_LEN},
+        proto::{
+            plain::{
+                handshake::{ClientHelloMessage, ServerHelloMessage},
+                stream::{Plain, PlainStream},
+            },
+            secure::{
+                message::Secure,
+                stream::SecureStream,
+                transfer::{ReceiverControl, SendResourceRequest},
+            },
+            Side,
+        },
+    };
 
     use super::*;
     use async_std::{net::TcpListener, task};
     use chrono::Duration;
-    use ring::{agreement::{self, UnparsedPublicKey}, signature};
     use ring::signature::KeyPair;
-
+    use ring::{
+        agreement::{self, UnparsedPublicKey},
+        signature,
+    };
 
     #[ignore]
     #[async_std::test]
     async fn test_encrypt() {
         let sig_key_pair = crypto::generate_signature_key_pair().unwrap();
-        let sig_pub_key = signature::UnparsedPublicKey::new(&signature::ED25519, sig_key_pair.public_key().as_ref().to_owned());
+        let sig_pub_key = signature::UnparsedPublicKey::new(
+            &signature::ED25519,
+            sig_key_pair.public_key().as_ref().to_owned(),
+        );
 
         let join_handle = task::spawn(async move {
             let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
@@ -139,9 +158,11 @@ mod test {
             let secrets = crypto::generate_session_secrets(
                 private_key,
                 UnparsedPublicKey::new(&agreement::X25519, received_msg.public_key_bytes),
-                &message[..2 * NONCE_LEN].try_into().unwrap(),
+                message[..2 * NONCE_LEN].try_into().unwrap(),
                 Side::Server,
-            ).await.unwrap();
+            )
+            .await
+            .unwrap();
 
             let mut stream = SecureStream::new(stream, secrets);
 
@@ -168,14 +189,12 @@ mod test {
 
         let received_msg = ServerHelloMessage::try_from(stream.recv().await.unwrap()).unwrap();
 
-        let (pub_key, nonces) = crypto::verify_server_hello(received_msg, nonce, &sig_pub_key).unwrap();
+        let (pub_key, nonces) =
+            crypto::verify_server_hello(received_msg, nonce, &sig_pub_key).unwrap();
 
-        let secrets = crypto::generate_session_secrets(
-            private_key,
-            pub_key,
-            &nonces,
-            Side::Client,
-        ).await.unwrap();
+        let secrets = crypto::generate_session_secrets(private_key, pub_key, nonces, Side::Client)
+            .await
+            .unwrap();
 
         let mut secure = SecureStream::new(stream, secrets);
 

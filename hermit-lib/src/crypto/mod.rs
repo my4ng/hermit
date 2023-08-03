@@ -5,8 +5,8 @@ use std::sync::OnceLock;
 use async_std::task;
 use ring::{aead, agreement, digest, hkdf, rand, signature};
 
-use crate::{error, proto};
 use crate::proto::message::handshake;
+use crate::{error, proto};
 
 pub(crate) const NONCE_LEN: usize = 16;
 pub(crate) const ED25519_SIGNATURE_LEN: usize = 64;
@@ -109,8 +109,7 @@ pub(crate) async fn generate_session_secrets(
     own_private_key: agreement::EphemeralPrivateKey,
     other_public_key: agreement::UnparsedPublicKey<[u8; X25519_PUBLIC_KEY_LEN]>,
     // NOTE: nonces === client_nonce || server_nonce
-    nonces: &[u8; 2 * NONCE_LEN],
-    // NOTE: whether
+    nonces: [u8; 2 * NONCE_LEN],
     own_side: proto::Side,
 ) -> Result<secrets::SessionSecrets, error::CryptoError> {
     let (send_side_bytes, recv_side_bytes) = match own_side {
@@ -118,13 +117,11 @@ pub(crate) async fn generate_session_secrets(
         proto::Side::Server => (b"server", b"client"),
     };
 
-    let nonces_copy = *nonces;
-
     task::spawn_blocking(move || {
-        let prk = generate_pseudorandom_key(own_private_key, other_public_key, &nonces_copy)?;
+        let prk = generate_pseudorandom_key(own_private_key, other_public_key, &nonces)?;
         let send_key = generate_master_key(&prk, send_side_bytes);
         let recv_key = generate_master_key(&prk, recv_side_bytes);
-        let nonce_base = generate_nonce_base(&nonces_copy);
+        let nonce_base = generate_nonce_base(&nonces);
 
         Ok(secrets::SessionSecrets::new(
             prk, send_key, recv_key, nonce_base,

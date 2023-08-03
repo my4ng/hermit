@@ -229,9 +229,9 @@ checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 
 [[package]]
 name = "cc"
-version = "1.0.80"
+version = "1.0.81"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51f1226cd9da55587234753d1245dd5b132343ea240f26b6a9003d68706141ba"
+checksum = "6c6b2562119bf28c3439f7f02db99faf0aa1a8cdfe5772a2ee155d32227239f0"
 dependencies = [
  "libc",
 ]
@@ -356,9 +356,9 @@ dependencies = [
 
 [[package]]
 name = "deranged"
-version = "0.3.6"
+version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8810e7e2cf385b1e9b50d68264908ec367ba642c96d02edfe61c39e88e2a3c01"
+checksum = "7684a49fb1af197853ef7b2ee694bc1f5b4179556f1e5710e1760c5db6f5e929"
 dependencies = [
  "serde",
 ]
@@ -868,9 +868,9 @@ dependencies = [
 
 [[package]]
 name = "quinn"
-version = "0.10.1"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21252f1c0fc131f1b69182db8f34837e8a69737b8251dff75636a9be0518c324"
+checksum = "8cc2c5017e4b43d5995dcea317bc46c1e09404c0a9664d2908f7f02dfe943d75"
 dependencies = [
  "async-std",
  "bytes",
@@ -887,9 +887,9 @@ dependencies = [
 
 [[package]]
 name = "quinn-proto"
-version = "0.10.1"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85af4ed6ee5a89f26a26086e9089a6643650544c025158449a3626ebf72884b3"
+checksum = "f8c8bb234e70c863204303507d841e7fa2295e95c822b2bb4ca8ebf57f17b1cb"
 dependencies = [
  "bytes",
  "rand",
@@ -998,9 +998,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.21.5"
+version = "0.21.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79ea77c539259495ce8ca47f53e66ae0330a8819f67e23ac96ca02f50e7b7d36"
+checksum = "1d1feddffcfcc0b33f5c6ce9a29e341e4cd59c3f78e7ee45f4a40c038b1d6cbb"
 dependencies = [
  "ring",
  "rustls-webpki",
@@ -1130,7 +1130,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with_macros",
- "time 0.3.24",
+ "time 0.3.25",
 ]
 
 [[package]]
@@ -1241,9 +1241,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.24"
+version = "0.3.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b79eabcd964882a646b3584543ccabeae7869e9ac32a46f6f22b7a5bd405308b"
+checksum = "b0fdd63d58b18d663fbdf70e049f00a22c8e42be082203be7f26589213cd75ea"
 dependencies = [
  "deranged",
  "itoa",

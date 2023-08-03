@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use async_std::task;
 
 use super::buffer::{ReadBuffer, WriteBuffer};
-use crate::proto::stream::{Plain, PlainStream};
 use crate::proto::message::Message;
+use crate::proto::stream::{Plain, PlainStream};
 use crate::{crypto::secrets, error};
 
 pub trait Secure: Plain {
@@ -35,7 +35,6 @@ impl SecureStream {
         }
     }
 }
-
 
 #[async_trait::async_trait]
 impl Plain for SecureStream {
@@ -68,7 +67,6 @@ impl ciborium_io::Read for &mut &mut SecureStream {
     type Error = error::Error;
 
     fn read_exact(&mut self, data: &mut [u8]) -> Result<(), Self::Error> {
-
         self.read_buffer.read(data, || {
             let msg = task::block_on(self.stream.recv())?;
             let payload = self.session_secrets.open(msg)?;
@@ -83,13 +81,15 @@ impl ciborium_io::Write for &mut &mut SecureStream {
     fn write_all(&mut self, data: &[u8]) -> Result<(), Self::Error> {
         let stream = RefCell::new(&mut self.stream);
 
-        self.write_buffer.write(data, |payload| {
-            let msg = self.session_secrets.seal(payload)?;
-            task::block_on(stream.borrow_mut().send(msg))?;
-            Ok::<_, Self::Error>(())
-        }, || {
-            stream.borrow().len_limit()
-        })
+        self.write_buffer.write(
+            data,
+            |payload| {
+                let msg = self.session_secrets.seal(payload)?;
+                task::block_on(stream.borrow_mut().send(msg))?;
+                Ok::<_, Self::Error>(())
+            },
+            || stream.borrow().len_limit(),
+        )
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {

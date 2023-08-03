@@ -42,7 +42,9 @@ impl HandshakingConnection {
     ) -> Self {
         Self(state.0, Some((nonce, private_key)))
     }
-    pub(super) fn nonce_private_key(&mut self) -> Option<([u8; NONCE_LEN], ring::agreement::EphemeralPrivateKey)> {
+    pub(super) fn nonce_private_key(
+        &mut self,
+    ) -> Option<([u8; NONCE_LEN], ring::agreement::EphemeralPrivateKey)> {
         self.1.take()
     }
 }

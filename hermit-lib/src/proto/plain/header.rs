@@ -1,10 +1,7 @@
 #![allow(non_upper_case_globals)]
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::{
-    error,
-    proto::ProtocolVersion,
-};
+use crate::{error, proto::ProtocolVersion};
 
 pub(crate) const MSG_HEADER_LEN: usize = 4;
 
@@ -41,7 +38,11 @@ pub(crate) struct MessageHeader {
 }
 
 impl MessageHeader {
-    pub(super) fn new(plain_msg_type: PlainMessageType, version: ProtocolVersion, length: usize) -> Self {
+    pub(super) fn new(
+        plain_msg_type: PlainMessageType,
+        version: ProtocolVersion,
+        length: usize,
+    ) -> Self {
         Self {
             plain_msg_type,
             version,

@@ -20,7 +20,6 @@ macro_rules! plain_from_msg_helper {
     };
 }
 
-
 #[macro_export]
 macro_rules! plain_msg {
     ($message:ty, $message_type:expr) => {
@@ -52,9 +51,9 @@ macro_rules! plain_msg {
             fn from(value: $message) -> Self {
                 let mut msg = Self::new($message_type, Box::new([0; $len]));
                 let mut len = 0;
-        
+
                 $crate::plain_to_msg_helper!(msg, len, value; $($fields, $field_lens);+ );
-        
+
                 msg
             }
         }
@@ -82,7 +81,6 @@ macro_rules! plain_msg {
         }
     };
 }
-
 
 #[doc(hidden)]
 #[macro_export]

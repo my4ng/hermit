@@ -1,8 +1,8 @@
 use ring;
 use thiserror;
 
-use crate::proto::ProtocolVersion;
 use crate::proto::message::{PlainMessageType, SecureMessageType};
+use crate::proto::ProtocolVersion;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {

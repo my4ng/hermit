@@ -1,7 +1,7 @@
 use async_std::io::prelude::*;
 
-use super::message::Message;
 use super::header::MSG_HEADER_LEN;
+use super::message::Message;
 use crate::error;
 use crate::proto::message::{MAX_LEN_LIMIT, MIN_LEN_LIMIT};
 use crate::proto::stream::BaseStream;

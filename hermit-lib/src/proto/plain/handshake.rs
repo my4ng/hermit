@@ -11,8 +11,8 @@ pub(crate) struct ClientHelloMessage {
     pub(crate) public_key_bytes: [u8; crypto::X25519_PUBLIC_KEY_LEN],
 }
 
-plain_msg!(ClientHelloMessage, PlainMessageType::ClientHello, CLIENT_HELLO_MSG_LEN => 
-    nonce, crypto::NONCE_LEN; 
+plain_msg!(ClientHelloMessage, PlainMessageType::ClientHello, CLIENT_HELLO_MSG_LEN =>
+    nonce, crypto::NONCE_LEN;
     public_key_bytes, crypto::X25519_PUBLIC_KEY_LEN
 );
 
@@ -23,8 +23,8 @@ pub(crate) struct ServerHelloMessage {
     pub(crate) signature: [u8; crypto::ED25519_SIGNATURE_LEN],
 }
 
-plain_msg!(ServerHelloMessage, PlainMessageType::ServerHello, SERVER_HELLO_MSG_LEN => 
-    nonce, crypto::NONCE_LEN; 
+plain_msg!(ServerHelloMessage, PlainMessageType::ServerHello, SERVER_HELLO_MSG_LEN =>
+    nonce, crypto::NONCE_LEN;
     public_key_bytes, crypto::X25519_PUBLIC_KEY_LEN;
     signature, crypto::ED25519_SIGNATURE_LEN
 );
@@ -41,8 +41,8 @@ plain_msg!(DowngradeMessage, PlainMessageType::Downgrade);
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use super::super::message::Message;
+    use super::*;
 
     #[async_std::test]
     async fn test_client_hello_message() {

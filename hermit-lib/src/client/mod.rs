@@ -43,6 +43,7 @@ impl Client<NoConnection> {
             state: NoConnection,
         }
     }
+
     fn connect(self, stream: BaseStream) -> Client<InsecureConnection> {
         Client {
             state: InsecureConnection::new(self.state, PlainStream::from(stream)),
@@ -53,7 +54,10 @@ impl Client<NoConnection> {
 // TODO: return self when having an error
 impl Client<InsecureConnection> {
     async fn client_hello(mut self) -> Result<Client<HandshakingConnection>, Error> {
+        // Generate client nonce
         let client_nonce = crypto::generate_nonce().await?;
+
+        // Generate ephemeral key pair
         let (client_private_key, public_key) = crypto::generate_ephemeral_key_pair()?;
 
         let client_hello_msg = handshake::ClientHelloMessage {
@@ -95,7 +99,7 @@ impl Client<HandshakingConnection> {
         let session_secrets = crypto::generate_session_secrets(
             client_private_key,
             server_public_key,
-            &nonces,
+            nonces,
             Side::Client,
         )
         .await?;
@@ -104,6 +108,16 @@ impl Client<HandshakingConnection> {
         Ok(Client {
             state: UpgradedConnection::new(self.state, session_secrets),
         })
+    }
+}
+
+impl Client<UpgradedConnection> {
+    async fn send_resource(&mut self) -> Result<(), Error> {
+        todo!()
+    }
+
+    async fn receive_resource(&mut self) -> Result<(), Error> {
+        todo!()
     }
 }
 
@@ -116,10 +130,6 @@ impl<T: SecureState<UnderlyingStream = PlainStream>> Client<T> {
         Ok(Client {
             state: InsecureConnection::downgrade(self.state),
         })
-    }
-
-    pub async fn send_resource(&mut self) -> Result<(), Error> {
-        todo!()
     }
 }
 

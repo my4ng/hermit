@@ -1,12 +1,12 @@
 // Fix for rust-analyzer
 #![allow(non_upper_case_globals)]
 
-use num_enum::{IntoPrimitive, TryFromPrimitive};
 use ciborium_io::Write;
-use serde::{ser, de, Deserialize, Serialize};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use serde::{de, ser, Deserialize, Serialize};
 
-use crate::{error, proto::ProtocolVersion};
 use super::stream::SecureStream;
+use crate::{error, proto::ProtocolVersion};
 
 pub(crate) use ring::aead::MAX_TAG_LEN as TAG_LEN;
 
@@ -33,7 +33,9 @@ pub(in crate::proto) struct Header {
 // The former uses plain bytes and a fixed-length header, while the latter uses CBOR and a
 // variable-length header.
 
-pub(in crate::proto) trait Secure: Sized + ser::Serialize + de::DeserializeOwned {
+pub(in crate::proto) trait Secure:
+    Sized + ser::Serialize + de::DeserializeOwned
+{
     fn send(&self, mut secure_stream: &mut SecureStream) -> Result<(), error::Error> {
         ciborium::into_writer(self, &mut secure_stream).map_err(|err| match err {
             ciborium::ser::Error::Io(error) => error,
