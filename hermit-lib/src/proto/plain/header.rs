@@ -33,6 +33,7 @@ pub enum PlainMessageType {
 // |-------------------------------------------|
 
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub(crate) struct MessageHeader {
     plain_msg_type: PlainMessageType,
     version: ProtocolVersion,

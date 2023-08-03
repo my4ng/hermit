@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::proto::message::{MAX_LEN_LIMIT, MIN_LEN_LIMIT};
 use super::header::PlainMessageType;
-use crate::plain;
+use crate::plain_msg;
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub(crate) struct AdjustMessageLengthRequest {
@@ -25,7 +25,7 @@ impl AdjustMessageLengthRequest {
     }
 }
 
-plain!(AdjustMessageLengthRequest, PlainMessageType::AdjustMessageLengthRequest, 2 =>
+plain_msg!(AdjustMessageLengthRequest, PlainMessageType::AdjustMessageLengthRequest, 2 =>
     length, 2
 );
 
@@ -44,6 +44,6 @@ impl AdjustMessageLengthResponse {
     };
 }
 
-plain!(AdjustMessageLengthResponse, PlainMessageType::AdjustMessageLengthResponse, 1 =>
+plain_msg!(AdjustMessageLengthResponse, PlainMessageType::AdjustMessageLengthResponse, 1 =>
     has_accepted, 1
 );

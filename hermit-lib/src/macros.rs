@@ -22,7 +22,7 @@ macro_rules! plain_from_msg_helper {
 
 
 #[macro_export]
-macro_rules! plain {
+macro_rules! plain_msg {
     ($message:ty, $message_type:expr) => {
         impl From<$message> for $crate::proto::plain::message::Message {
             fn from(_: $message) -> Self {
@@ -78,6 +78,53 @@ macro_rules! plain {
                 Ok(Self {
                    $($fields),*
                 })
+            }
+        }
+    };
+}
+
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! nil {
+    ($state:ident) => {
+        impl State for $state {}
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! plain {
+    ($state:ident) => {
+        impl State for $state {}
+        impl PlainState for $state {
+            type PlainStream = PlainStream;
+            fn plain_stream(&mut self) -> &mut Self::PlainStream {
+                &mut self.0
+            }
+        }
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! secure {
+    ($state:ident) => {
+        impl State for $state {}
+        impl PlainState for $state {
+            type PlainStream = SecureStream;
+            fn plain_stream(&mut self) -> &mut Self::PlainStream {
+                &mut self.0
+            }
+        }
+        impl SecureState for $state {
+            type UnderlyingStream = PlainStream;
+            type SecureStream = SecureStream;
+            fn secure_stream(&mut self) -> &mut Self::SecureStream {
+                &mut self.0
+            }
+            fn downgrade(self) -> Self::UnderlyingStream {
+                self.0.downgrade()
             }
         }
     };

@@ -1,5 +1,5 @@
 use super::header::PlainMessageType;
-use crate::{crypto, plain};
+use crate::{crypto, plain_msg};
 
 pub(crate) const CLIENT_HELLO_MSG_LEN: usize = crypto::NONCE_LEN + crypto::X25519_PUBLIC_KEY_LEN;
 pub(crate) const SERVER_HELLO_MSG_LEN: usize =
@@ -11,7 +11,7 @@ pub(crate) struct ClientHelloMessage {
     pub(crate) public_key_bytes: [u8; crypto::X25519_PUBLIC_KEY_LEN],
 }
 
-plain!(ClientHelloMessage, PlainMessageType::ClientHello, CLIENT_HELLO_MSG_LEN => 
+plain_msg!(ClientHelloMessage, PlainMessageType::ClientHello, CLIENT_HELLO_MSG_LEN => 
     nonce, crypto::NONCE_LEN; 
     public_key_bytes, crypto::X25519_PUBLIC_KEY_LEN
 );
@@ -23,21 +23,21 @@ pub(crate) struct ServerHelloMessage {
     pub(crate) signature: [u8; crypto::ED25519_SIGNATURE_LEN],
 }
 
-plain!(ServerHelloMessage, PlainMessageType::ServerHello, SERVER_HELLO_MSG_LEN => 
+plain_msg!(ServerHelloMessage, PlainMessageType::ServerHello, SERVER_HELLO_MSG_LEN => 
     nonce, crypto::NONCE_LEN; 
     public_key_bytes, crypto::X25519_PUBLIC_KEY_LEN;
     signature, crypto::ED25519_SIGNATURE_LEN
 );
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DisconnectMessage {}
+pub(crate) struct DisconnectMessage;
 
-plain!(DisconnectMessage, PlainMessageType::Disconnect);
+plain_msg!(DisconnectMessage, PlainMessageType::Disconnect);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DowngradeMessage {}
+pub(crate) struct DowngradeMessage;
 
-plain!(DowngradeMessage, PlainMessageType::Downgrade);
+plain_msg!(DowngradeMessage, PlainMessageType::Downgrade);
 
 #[cfg(test)]
 mod test {

@@ -7,8 +7,8 @@ pub(crate) use crate::proto::plain::stream::{Plain, PlainStream};
 pub(crate) use crate::proto::secure::stream::{Secure, SecureStream};
 
 pub struct QuicStream {
-    pub(crate) send_stream: SendStream,
-    pub(crate) recv_stream: RecvStream,
+    pub(crate) send_stream: Box<SendStream>,
+    pub(crate) recv_stream: Box<RecvStream>,
 }
 
 impl futures_io::AsyncRead for QuicStream {
@@ -44,8 +44,6 @@ impl futures_io::AsyncWrite for QuicStream {
         Pin::new(&mut self.get_mut().send_stream).poll_close(cx)
     }
 }
-
-pub struct NilStream;
 
 pub enum BaseStream {
     Tcp(TcpStream),

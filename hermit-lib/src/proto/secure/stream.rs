@@ -3,7 +3,6 @@ use std::cell::RefCell;
 use async_std::task;
 
 use super::buffer::{ReadBuffer, WriteBuffer};
-use super::message;
 use crate::proto::stream::{Plain, PlainStream};
 use crate::proto::message::Message;
 use crate::{crypto::secrets, error};
@@ -11,8 +10,10 @@ use crate::{crypto::secrets, error};
 pub trait Secure: Plain {
     type SessionSecrets;
     type PlainType: Plain;
-    // NOTE: TAG_LEN of space has been reserved at the end of the payload when
-    // sealing and opening.
+
+    // fn send(&mut self, secure_msg: impl message::Secure) -> Result<(), error::Error>;
+    // fn recv_header(&mut self) -> Result<message::SecureMessageType, error::Error>;
+    // fn recv<S: message::Secure>(&mut self) -> Result<S, error::Error>;
     fn upgrade(stream: Self::PlainType, secrets: Self::SessionSecrets) -> Self;
     fn downgrade(self) -> Self::PlainType;
 }
@@ -34,6 +35,7 @@ impl SecureStream {
         }
     }
 }
+
 
 #[async_trait::async_trait]
 impl Plain for SecureStream {
@@ -58,6 +60,9 @@ impl Secure for SecureStream {
         Self::new(stream, secrets)
     }
 }
+
+// NOTE: TAG_LEN of space has been reserved at the end of the payload when
+// sealing and opening.
 
 impl ciborium_io::Read for &mut &mut SecureStream {
     type Error = error::Error;
