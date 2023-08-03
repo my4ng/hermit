@@ -8,6 +8,7 @@ use serde::{ser, de, Deserialize, Serialize};
 use crate::{error, proto::ProtocolVersion};
 use super::stream::SecureStream;
 
+pub(crate) use ring::aead::MAX_TAG_LEN as TAG_LEN;
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive, Deserialize, Serialize,

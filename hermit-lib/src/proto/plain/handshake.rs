@@ -1,4 +1,4 @@
-use super::message::PlainMessageType;
+use super::header::PlainMessageType;
 use crate::{crypto, plain};
 
 pub(crate) const CLIENT_HELLO_MSG_LEN: usize = crypto::NONCE_LEN + crypto::X25519_PUBLIC_KEY_LEN;

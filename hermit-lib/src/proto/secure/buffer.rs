@@ -1,4 +1,4 @@
-use crate::proto::message::TAG_LEN;
+use super::message::TAG_LEN;
 
 pub(super) struct ReadBuffer {
     buffer: Option<Box<[u8]>>,

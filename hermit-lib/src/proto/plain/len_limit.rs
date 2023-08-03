@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::proto::message::{MAX_LEN_LIMIT, MIN_LEN_LIMIT};
-use super::message::PlainMessageType;
+use super::header::PlainMessageType;
 use crate::plain;
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
