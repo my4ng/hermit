@@ -38,6 +38,10 @@ impl SecureStream {
 
 #[async_trait::async_trait]
 impl Plain for SecureStream {
+    fn set_len_limit(&mut self, len_limit: usize) {
+        self.stream.set_len_limit(len_limit);
+    }
+
     async fn send(&mut self, msg: Message) -> Result<(), error::Error> {
         self.stream.send(msg).await
     }

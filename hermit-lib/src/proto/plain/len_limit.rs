@@ -5,45 +5,46 @@ use crate::plain_msg;
 use crate::proto::message::{MAX_LEN_LIMIT, MIN_LEN_LIMIT};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
-pub(crate) struct AdjustMessageLengthRequest {
-    // NOTE: `MIN_MSG_LEN` <= `length` <= `MAX_MSG_LEN`.
-    length: [u8; 2],
+pub(crate) struct AdjustLenLimitRequest {
+    len_limit: [u8; 2],
 }
 
-impl AdjustMessageLengthRequest {
-    pub(crate) fn try_new(length: usize) -> Option<Self> {
-        if !(MIN_LEN_LIMIT..=MAX_LEN_LIMIT).contains(&length) {
+impl AdjustLenLimitRequest {
+    pub(crate) fn try_new(len_limit: usize) -> Option<Self> {
+        if !(MIN_LEN_LIMIT..=MAX_LEN_LIMIT).contains(&len_limit) {
             return None;
         }
         Some(Self {
-            length: (length as u16).to_be_bytes(),
+            len_limit: (len_limit as u16).to_be_bytes(),
         })
     }
 
-    pub(crate) fn length(&self) -> usize {
-        u16::from_be_bytes(self.length) as usize
+    pub(crate) fn len_limit(self) -> usize {
+        u16::from_be_bytes(self.len_limit) as usize
     }
 }
 
-plain_msg!(AdjustMessageLengthRequest, PlainMessageType::AdjustMessageLengthRequest, 2 =>
-    length, 2
+plain_msg!(AdjustLenLimitRequest, PlainMessageType::AdjustLenLimitRequest, 2 =>
+    len_limit, 2
 );
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
-pub(crate) struct AdjustMessageLengthResponse {
+pub(crate) struct AdjustLenLimitResponse {
     has_accepted: [u8; 1],
 }
 
-impl AdjustMessageLengthResponse {
-    pub const ACCEPTED: AdjustMessageLengthResponse = AdjustMessageLengthResponse {
-        has_accepted: [0x01],
-    };
+impl AdjustLenLimitResponse {
+    pub fn new(has_accepted: bool) -> Self {
+        Self {
+            has_accepted: if has_accepted { [1] } else { [0] },
+        }
+    }
 
-    pub const REJECTED: AdjustMessageLengthResponse = AdjustMessageLengthResponse {
-        has_accepted: [0x00],
-    };
+    pub fn has_accepted(self) -> bool {
+        self.has_accepted[0] == 1
+    }
 }
 
-plain_msg!(AdjustMessageLengthResponse, PlainMessageType::AdjustMessageLengthResponse, 1 =>
+plain_msg!(AdjustLenLimitResponse, PlainMessageType::AdjustLenLimitResponse, 1 =>
     has_accepted, 1
 );

@@ -15,8 +15,8 @@ pub enum PlainMessageType {
     Disconnect = 0x03,
     Downgrade = 0x04,
 
-    AdjustMessageLengthRequest = 0x10,
-    AdjustMessageLengthResponse = 0x11,
+    AdjustLenLimitRequest = 0x10,
+    AdjustLenLimitResponse = 0x11,
 }
 
 // LAYOUT:

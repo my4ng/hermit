@@ -12,7 +12,6 @@ use self::config::Config;
 use self::server::ServerSigPubKey;
 use self::state::*;
 
-#[derive(Debug, Clone, Copy, Default)]
 pub struct Client<T: State> {
     state: T,
     conf: Config,
@@ -101,6 +100,7 @@ impl Client<HandshakingConnection> {
                 Side::Client,
             )
             .await?;
+
             Ok::<crypto::secrets::SessionSecrets, Error>(session_secrets)
         }
         .await;
@@ -137,6 +137,7 @@ impl<S: PlainState, T: SecureState<DowngradeState = S>> Client<T> {
             .plain_stream()
             .send(handshake::DowngradeMessage.into())
             .await?;
+
         Ok(Client {
             state: self.state.downgrade(),
             conf: self.conf,
@@ -144,13 +145,13 @@ impl<S: PlainState, T: SecureState<DowngradeState = S>> Client<T> {
     }
 }
 
-// NOTE: for both PlainStream and SecureStream
 impl<T: PlainState> Client<T> {
     async fn disconnect(mut self) -> Result<Client<NoConnection>, Error> {
         self.state
             .plain_stream()
             .send(handshake::DisconnectMessage {}.into())
             .await?;
+
         Ok(Client {
             state: NoConnection,
             conf: Config::default(),
@@ -159,23 +160,58 @@ impl<T: PlainState> Client<T> {
 
     // READ: proto/message/msg_len_limit.md for more information.
 
-    async fn request_len_limit(mut self, len_limit: usize) -> Result<Client<T>, Error> {
+    async fn request_len_limit(&mut self, len_limit: usize) -> Result<(), Error> {
+        // Per specificiation, return an error if there is an ongoing request.
+        if let Some(len_limit) = self.conf.requested_len_limit {
+            return Err(error::LenLimitAdjustmentError::OngoingRequest(len_limit).into());
+        }
+
         self.state
             .plain_stream()
             .send(
-                len_limit::AdjustMessageLengthRequest::try_new(len_limit)
-                    .ok_or(error::InvalidMessageError::NewLengthLimit(len_limit))?
+                len_limit::AdjustLenLimitRequest::try_new(len_limit)
+                    .ok_or(error::LenLimitAdjustmentError::InvalidLimit(len_limit))?
                     .into(),
             )
             .await?;
-        Ok(Client {
-            state: self.state,
-            conf: self.conf.request_len_limit(len_limit),
-        })
+
+        self.conf.requested_len_limit = Some(len_limit);
+        Ok(())
     }
 
-    async fn request_len_limit_accepted(mut self) -> Result<Client<T>, Error> {
-        todo!()
+    async fn request_len_limit_responded(
+        &mut self,
+        response: len_limit::AdjustLenLimitResponse,
+    ) -> Result<(), Error> {
+        let len_limit = self
+            .conf
+            .requested_len_limit
+            .take()
+            .ok_or(error::LenLimitAdjustmentError::NoOngoingRequest)?;
+
+        if response.has_accepted() {
+            self.state.plain_stream().set_len_limit(len_limit);
+        }
+
+        Ok(())
+    }
+
+    async fn respond_len_limit(&mut self, 
+        request: len_limit::AdjustLenLimitRequest,
+        decision_callback: impl FnOnce(usize) -> bool,
+    ) -> Result<(), Error> {
+        let decision = if self.conf.requested_len_limit.is_some() {
+            false
+        } else {
+            decision_callback(request.len_limit())
+        };
+        
+        self.state
+            .plain_stream()
+            .send(len_limit::AdjustLenLimitResponse::new(decision).into())
+            .await?;
+
+        Ok(())
     }
 }
 

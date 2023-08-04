@@ -8,6 +8,7 @@ use crate::proto::stream::BaseStream;
 
 #[async_trait::async_trait]
 pub trait Plain {
+    fn set_len_limit(&mut self, len_limit: usize);
     async fn send(&mut self, message: Message) -> Result<(), error::Error>;
     async fn recv(&mut self) -> Result<Message, error::Error>;
 }
@@ -33,10 +34,6 @@ impl PlainStream {
         self.len_limit
     }
 
-    pub(crate) fn set_len_limit(&mut self, len_limit: usize) {
-        self.len_limit = len_limit.clamp(MIN_LEN_LIMIT, MAX_LEN_LIMIT);
-    }
-
     // SANITY CHECK
     #[cfg(debug_assertions)]
     fn send_check(&self, msg: &Message) -> Result<(), error::InvalidMessageError> {
@@ -60,6 +57,11 @@ impl PlainStream {
 
 #[async_trait::async_trait]
 impl Plain for PlainStream {
+    fn set_len_limit(&mut self, len_limit: usize) {
+        // fail-safe to prevent invalid length limit
+        self.len_limit = len_limit.clamp(MIN_LEN_LIMIT, MAX_LEN_LIMIT);
+    }
+
     async fn send(&mut self, msg: Message) -> Result<(), error::Error> {
         self.stream
             .write_all(&<[u8; MSG_HEADER_LEN]>::from(msg.header()))

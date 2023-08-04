@@ -12,6 +12,8 @@ pub enum Error {
     IONetwork(#[from] async_std::io::Error),
     #[error("Error parsing message: {0}")]
     MessageParsing(#[from] InvalidMessageError),
+    #[error("Error in message length limit adjustment: {0}")]
+    LenLimitAdjustment(#[from] LenLimitAdjustmentError),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -50,10 +52,18 @@ pub enum InvalidMessageError {
     PayloadLengthAboveLimit { length: usize, limit: usize },
     #[error("Invalid payload length; expected {expected}, got {actual}")]
     PayloadLengthMismatch { expected: usize, actual: usize },
-    #[error("Invalid new length limit: {0}")]
-    NewLengthLimit(usize),
     #[error("CBOR deserialization error: {0}")]
     CborDeserialization(String),
     #[error("CBOR serialization error: {0}")]
     CborSerialization(String),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum LenLimitAdjustmentError {
+    #[error("Ongoing length limit request; requested limit: {0}")]
+    OngoingRequest(usize),
+    #[error("Invalid length limit: {0}")]
+    InvalidLimit(usize),
+    #[error("No ongoing length limit request to receive a response for.")]
+    NoOngoingRequest,
 }

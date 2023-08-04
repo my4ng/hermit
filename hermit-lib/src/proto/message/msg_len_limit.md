@@ -12,4 +12,4 @@ If the requested limit is not within this range, the other side MUST reject the 
 
 If the requested limit is within the range, and less than or equal to the current limit, the other side MUST accept the request. If however the limit is greater, the other side MAY choose to either accept or reject the request at their discretion.
 
-The acceptance/rejection response is sent back through the `AdjustMessageLengthResponse` plain message, with any accepted limit include. Both sides must change the MLL if and only if AFTER sending/receiving this message. During the period between sending the request and waiting for the response, the side MUST reject any MLL adjustment request for the other side.
+The acceptance/rejection response is sent back through the `AdjustMessageLengthResponse` plain message. Both sides must change the MLL if and only if AFTER sending/receiving this message. During the period between sending the request and waiting for the response, the side MUST reject any MLL adjustment request made from the other side, AND MUST NOT send any further request.
