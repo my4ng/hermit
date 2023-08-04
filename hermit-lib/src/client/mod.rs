@@ -131,7 +131,7 @@ impl Client<UpgradedConnection> {
     }
 }
 
-impl<S: State, T: SecureState<DowngradeState = S>> Client<T> {
+impl<S: PlainState, T: SecureState<DowngradeState = S>> Client<T> {
     async fn downgrade(mut self) -> Result<Client<S>, Error> {
         self.state
             .plain_stream()
@@ -157,6 +157,8 @@ impl<T: PlainState> Client<T> {
         })
     }
 
+    // READ: proto/message/msg_len_limit.md for more information.
+
     async fn request_len_limit(mut self, len_limit: usize) -> Result<Client<T>, Error> {
         self.state
             .plain_stream()
@@ -170,6 +172,10 @@ impl<T: PlainState> Client<T> {
             state: self.state,
             conf: self.conf.request_len_limit(len_limit),
         })
+    }
+
+    async fn request_len_limit_accepted(mut self) -> Result<Client<T>, Error> {
+        todo!()
     }
 }
 
