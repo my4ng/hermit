@@ -1,7 +1,7 @@
 use ring;
 use thiserror;
 
-use crate::proto::message::{PlainMessageType, SecureMessageType};
+use crate::proto::message::PlainMessageType;
 use crate::proto::ProtocolVersion;
 
 #[derive(thiserror::Error, Debug)]
@@ -42,8 +42,6 @@ impl From<ring::error::KeyRejected> for CryptoError {
 pub enum InvalidMessageError {
     #[error("Invalid message type: {0}")]
     MessageType(#[from] num_enum::TryFromPrimitiveError<PlainMessageType>),
-    #[error("Invalid secure message type: {0}")]
-    SecureMessageType(#[from] num_enum::TryFromPrimitiveError<SecureMessageType>),
     #[error("Invalid protocol version: {0}")]
     ProtocolVersion(#[from] num_enum::TryFromPrimitiveError<ProtocolVersion>),
     #[error("Payload length out of valid range; length {length}")]
@@ -52,6 +50,8 @@ pub enum InvalidMessageError {
     PayloadLengthAboveLimit { length: usize, limit: usize },
     #[error("Invalid payload length; expected {expected}, got {actual}")]
     PayloadLengthMismatch { expected: usize, actual: usize },
+    #[error("Invalid new length limit: {0}")]
+    NewLengthLimit(usize),
     #[error("CBOR deserialization error: {0}")]
     CborDeserialization(String),
     #[error("CBOR serialization error: {0}")]

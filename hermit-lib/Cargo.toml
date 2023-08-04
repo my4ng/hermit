@@ -28,3 +28,4 @@ serde_with = { version = "~3.1", features = ["chrono"] }
 [dev-dependencies]
 hex = "~0.4"
 serde_json = "~1.0"     # used for debug testing
+criterion = "~0.5"

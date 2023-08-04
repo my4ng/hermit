@@ -116,13 +116,13 @@ macro_rules! secure {
             }
         }
         impl SecureState for $state {
-            type UnderlyingStream = PlainStream;
+            type DowngradeState = InsecureConnection;
             type SecureStream = SecureStream;
             fn secure_stream(&mut self) -> &mut Self::SecureStream {
                 &mut self.0
             }
-            fn downgrade(self) -> Self::UnderlyingStream {
-                self.0.downgrade()
+            fn downgrade(self) -> Self::DowngradeState {
+                InsecureConnection::new(self.0.downgrade())
             }
         }
     };
