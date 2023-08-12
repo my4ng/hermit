@@ -2,9 +2,14 @@ mod config;
 mod server;
 mod state;
 
+use std::num::NonZeroUsize;
+use std::sync::Arc;
+
+use futures::SinkExt;
+
 use crate::error::Error;
-use crate::proto::message::{handshake, len_limit};
-use crate::proto::stream::{BaseStream, Plain, PlainStream};
+use crate::proto::message::{handshake, len_limit, transfer};
+use crate::proto::stream::{BaseStream, Plain, PlainStream, Secure};
 use crate::proto::Side;
 use crate::{crypto, error};
 
@@ -26,8 +31,10 @@ impl Client<NoConnection> {
     }
 
     fn connect(self, stream: BaseStream) -> Client<InsecureConnection> {
+        let stream = PlainStream::new(stream, NonZeroUsize::new(2).unwrap());
         Client {
-            state: InsecureConnection::new(PlainStream::from(stream)),
+            // TODO: Custom limit multiplier
+            state: InsecureConnection::new(Arc::new(stream)),
             conf: self.conf,
         }
     }
@@ -121,8 +128,20 @@ impl Client<HandshakingConnection> {
     }
 }
 
+// Only the (idle secure) `UpgradeConnection` state can send / receive secure messages
+// to transition to a different state type. As secure stream may not interleave messages
+// with different types, cf. plain stream, where each message is discrete.
 impl Client<UpgradedConnection> {
-    async fn send_resource_request(mut self) -> Result<Client<SendResourceRequested>, Error> {
+    async fn send_resource_request(
+        mut self,
+        request: transfer::SendResourceRequest,
+    ) -> Result<Client<SendResourceRequested>, (Self, Error)> {
+        let send_resource_request_result = async {
+            self.state.secure_stream().send_secure(request)?;
+            Ok::<(), Error>(())
+        }
+        .await;
+
         todo!()
     }
 
@@ -149,7 +168,7 @@ impl<T: PlainState> Client<T> {
     async fn disconnect(mut self) -> Result<Client<NoConnection>, Error> {
         self.state
             .plain_stream()
-            .send(handshake::DisconnectMessage {}.into())
+            .send(handshake::DisconnectMessage.into())
             .await?;
 
         Ok(Client {
@@ -196,7 +215,8 @@ impl<T: PlainState> Client<T> {
         Ok(())
     }
 
-    async fn respond_len_limit(&mut self, 
+    async fn respond_len_limit(
+        &mut self,
         request: len_limit::AdjustLenLimitRequest,
         decision_callback: impl FnOnce(usize) -> bool,
     ) -> Result<(), Error> {
@@ -205,7 +225,7 @@ impl<T: PlainState> Client<T> {
         } else {
             decision_callback(request.len_limit())
         };
-        
+
         self.state
             .plain_stream()
             .send(len_limit::AdjustLenLimitResponse::new(decision).into())
@@ -236,6 +256,6 @@ mod test {
         let tcp_stream = async_std::net::TcpStream::connect("127.0.0.1:8080")
             .await
             .unwrap();
-        let client = Client::new().connect(BaseStream::Tcp(tcp_stream));
+        let client = Client::new().connect(BaseStream(tcp_stream));
     }
 }

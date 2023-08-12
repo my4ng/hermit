@@ -6,3 +6,4 @@ pub mod error;
 mod macros;
 pub mod proto;
 pub mod server;
+mod test;

@@ -29,6 +29,10 @@ impl Message {
     pub(in crate::proto) fn header(&self) -> MessageHeader {
         self.header
     }
+
+    pub(in crate::proto) fn byte_len(&self) -> usize {
+        MSG_HEADER_LEN + self.payload.len()
+    }
 }
 
 impl AsRef<[u8]> for Message {

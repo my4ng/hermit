@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::crypto::secrets::SessionSecrets;
 use crate::crypto::NONCE_LEN;
 use crate::proto::stream::{Plain, PlainStream, Secure, SecureStream};
@@ -7,22 +9,22 @@ use crate::{nil, plain, secure};
 pub trait State {}
 pub trait PlainState: State {
     type PlainStream: Plain;
-    fn plain_stream(&mut self) -> &mut Self::PlainStream;
+    fn plain_stream(&mut self) -> Arc<Self::PlainStream>;
 }
 pub trait SecureState: PlainState {
     type DowngradeState: PlainState;
     type SecureStream: Secure;
-    fn secure_stream(&mut self) -> &mut Self::SecureStream;
+    fn secure_stream(&mut self) -> Arc<Self::SecureStream>;
     fn downgrade(self) -> Self::DowngradeState;
 }
 
 pub(super) struct NoConnection;
 nil!(NoConnection);
 
-pub(super) struct InsecureConnection(PlainStream);
+pub(super) struct InsecureConnection(Arc<PlainStream>);
 plain!(InsecureConnection);
 impl InsecureConnection {
-    pub(super) fn new(stream: PlainStream) -> Self {
+    pub(super) fn new(stream: Arc<PlainStream>) -> Self {
         Self(stream)
     }
 }
@@ -33,7 +35,7 @@ pub(super) struct HandshakeContext {
 }
 
 pub(super) struct HandshakingConnection(
-    PlainStream,
+    Arc<PlainStream>,
     Option<HandshakeContext>,
 );
 plain!(HandshakingConnection);
@@ -55,16 +57,16 @@ impl HandshakingConnection {
     }
 }
 
-pub(super) struct UpgradedConnection(SecureStream);
+pub(super) struct UpgradedConnection(Arc<SecureStream>);
 secure!(UpgradedConnection);
 impl UpgradedConnection {
     pub(super) fn new(state: HandshakingConnection, session_secrets: SessionSecrets) -> Self {
-        Self(SecureStream::new(state.0, session_secrets))
+        Self(Arc::new(SecureStream::new(*state.0, session_secrets)))
     }
 }
 
-pub(super) struct SendResourceRequested(SecureStream);
+pub(super) struct SendResourceRequested(Arc<SecureStream>);
 secure!(SendResourceRequested);
 
-pub(super) struct ReceiveResourceRequested(SecureStream);
+pub(super) struct ReceiveResourceRequested(Arc<SecureStream>);
 secure!(ReceiveResourceRequested);

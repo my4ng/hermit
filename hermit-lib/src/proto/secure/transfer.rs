@@ -2,7 +2,9 @@ use ring::signature;
 use serde::{Deserialize, Serialize};
 use serde_with;
 
-use super::message;
+use crate::secure_msg;
+
+use super::header::SecureMessageType;
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub(crate) enum ReceiverControl {
@@ -22,7 +24,7 @@ pub(crate) struct SendResourceRequest {
     pub receiver_control: Option<ReceiverControl>,
 }
 
-impl message::Secure for SendResourceRequest {}
+secure_msg!(SendResourceRequest, SecureMessageType::SendResourceRequest);
 
 // NOTE: the resource ID length is dynamic, depending on the number of active resources
 // on the server, and also the duration till the expiry time.
@@ -42,7 +44,7 @@ pub(crate) enum SendResourceResponse {
     ResourceTooLarge,
 }
 
-impl message::Secure for SendResourceResponse {}
+secure_msg!(SendResourceResponse, SecureMessageType::SendResourceResponse);
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub(crate) struct ReceiveResourceRequest {
@@ -50,7 +52,7 @@ pub(crate) struct ReceiveResourceRequest {
     pub control: Option<ReceiverControl>,
 }
 
-impl message::Secure for ReceiveResourceRequest {}
+secure_msg!(ReceiveResourceRequest, SecureMessageType::ReceiveResourceRequest);
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub(crate) enum ReceiveResourceResponse {
@@ -71,7 +73,7 @@ pub(crate) enum ReceiveResourceResponse {
     Failed,
 }
 
-impl message::Secure for ReceiveResourceResponse {}
+secure_msg!(ReceiveResourceResponse, SecureMessageType::ReceiveResourceResponse);
 
 #[cfg(test)]
 mod test {

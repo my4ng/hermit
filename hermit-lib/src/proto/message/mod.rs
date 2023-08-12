@@ -3,7 +3,8 @@ pub(crate) const MAX_LEN_LIMIT: usize = (1 << 15) - 1;
 
 pub(crate) use crate::proto::plain::header::{MessageHeader, PlainMessageType};
 pub(crate) use crate::proto::plain::message::Message;
-pub(crate) use crate::proto::secure::message::{SecureMessageType, TAG_LEN};
+pub(crate) use crate::proto::secure::header::{SecureMessageHeader, SecureMessageType};
+pub(crate) use crate::proto::secure::message::TAG_LEN;
 
 pub(crate) use crate::proto::plain::handshake;
 pub(crate) use crate::proto::plain::len_limit;

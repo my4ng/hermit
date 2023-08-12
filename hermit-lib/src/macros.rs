@@ -82,6 +82,20 @@ macro_rules! plain_msg {
     };
 }
 
+#[macro_export]
+macro_rules! secure_msg {
+    ($message:ty, $message_type:expr) => {
+        impl $crate::proto::secure::message::Secure for $message {
+            fn header(&self) -> $crate::proto::secure::header::SecureMessageHeader {
+                $crate::proto::secure::header::SecureMessageHeader {
+                    secure_msg_type: $message_type,
+                    timestamp: chrono::Utc::now(),
+                }
+            }
+        }
+    };
+}
+
 #[doc(hidden)]
 #[macro_export]
 macro_rules! nil {
@@ -97,8 +111,8 @@ macro_rules! plain {
         impl State for $state {}
         impl PlainState for $state {
             type PlainStream = PlainStream;
-            fn plain_stream(&mut self) -> &mut Self::PlainStream {
-                &mut self.0
+            fn plain_stream(&mut self) -> Arc<Self::PlainStream> {
+                self.0.clone()
             }
         }
     };
@@ -111,18 +125,18 @@ macro_rules! secure {
         impl State for $state {}
         impl PlainState for $state {
             type PlainStream = SecureStream;
-            fn plain_stream(&mut self) -> &mut Self::PlainStream {
-                &mut self.0
+            fn plain_stream(&mut self) -> Arc<Self::PlainStream> {
+                self.0.clone()
             }
         }
         impl SecureState for $state {
             type DowngradeState = InsecureConnection;
             type SecureStream = SecureStream;
-            fn secure_stream(&mut self) -> &mut Self::SecureStream {
-                &mut self.0
+            fn secure_stream(&mut self) -> Arc<Self::SecureStream> {
+                self.0.clone()
             }
             fn downgrade(self) -> Self::DowngradeState {
-                InsecureConnection::new(self.0.downgrade())
+                InsecureConnection::new(Arc::new(self.0.downgrade()))
             }
         }
     };
