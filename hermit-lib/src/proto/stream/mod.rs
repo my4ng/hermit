@@ -2,8 +2,8 @@ use std::pin::Pin;
 
 pub use async_std::net::TcpStream;
 
-pub(crate) use crate::proto::plain::stream::{Plain, PlainStream};
-pub(crate) use crate::proto::secure::stream::{Secure, SecureStream};
+pub(crate) use crate::proto::plain::stream::PlainStream;
+pub(crate) use crate::proto::secure::stream::SecureStream;
 
 
 pub struct BaseStream(pub(crate) TcpStream);

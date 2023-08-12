@@ -110,8 +110,7 @@ macro_rules! plain {
     ($state:ident) => {
         impl State for $state {}
         impl PlainState for $state {
-            type PlainStream = PlainStream;
-            fn plain_stream(&mut self) -> Arc<Self::PlainStream> {
+            fn plain_stream(&mut self) -> Arc<PlainStream> {
                 self.0.clone()
             }
         }
@@ -124,19 +123,18 @@ macro_rules! secure {
     ($state:ident) => {
         impl State for $state {}
         impl PlainState for $state {
-            type PlainStream = SecureStream;
-            fn plain_stream(&mut self) -> Arc<Self::PlainStream> {
-                self.0.clone()
+            fn plain_stream(&mut self) -> Arc<PlainStream> {
+                todo!()
             }
         }
         impl SecureState for $state {
             type DowngradeState = InsecureConnection;
-            type SecureStream = SecureStream;
-            fn secure_stream(&mut self) -> Arc<Self::SecureStream> {
+            fn secure_stream(&mut self) -> Arc<SecureStream> {
                 self.0.clone()
-            }
+        }
+
             fn downgrade(self) -> Self::DowngradeState {
-                InsecureConnection::new(Arc::new(self.0.downgrade()))
+                InsecureConnection::new(self.0.downgrade())
             }
         }
     };

@@ -9,7 +9,7 @@ use futures::SinkExt;
 
 use crate::error::Error;
 use crate::proto::message::{handshake, len_limit, transfer};
-use crate::proto::stream::{BaseStream, Plain, PlainStream, Secure};
+use crate::proto::stream::{BaseStream, PlainStream};
 use crate::proto::Side;
 use crate::{crypto, error};
 
@@ -60,8 +60,11 @@ impl Client<InsecureConnection> {
 
             self.state
                 .plain_stream()
+                .sink()
+                .await
                 .send(client_hello_msg.into())
                 .await?;
+
             Ok::<HandshakeContext, Error>(HandshakeContext {
                 nonce: client_nonce,
                 private_key: client_private_key,
@@ -136,12 +139,6 @@ impl Client<UpgradedConnection> {
         mut self,
         request: transfer::SendResourceRequest,
     ) -> Result<Client<SendResourceRequested>, (Self, Error)> {
-        let send_resource_request_result = async {
-            self.state.secure_stream().send_secure(request)?;
-            Ok::<(), Error>(())
-        }
-        .await;
-
         todo!()
     }
 
@@ -154,6 +151,8 @@ impl<S: PlainState, T: SecureState<DowngradeState = S>> Client<T> {
     async fn downgrade(mut self) -> Result<Client<S>, Error> {
         self.state
             .plain_stream()
+            .sink()
+            .await
             .send(handshake::DowngradeMessage.into())
             .await?;
 
@@ -168,6 +167,8 @@ impl<T: PlainState> Client<T> {
     async fn disconnect(mut self) -> Result<Client<NoConnection>, Error> {
         self.state
             .plain_stream()
+            .sink()
+            .await
             .send(handshake::DisconnectMessage.into())
             .await?;
 
@@ -187,6 +188,8 @@ impl<T: PlainState> Client<T> {
 
         self.state
             .plain_stream()
+            .sink()
+            .await
             .send(
                 len_limit::AdjustLenLimitRequest::try_new(len_limit)
                     .ok_or(error::LenLimitAdjustmentError::InvalidLimit(len_limit))?
@@ -228,6 +231,8 @@ impl<T: PlainState> Client<T> {
 
         self.state
             .plain_stream()
+            .sink()
+            .await
             .send(len_limit::AdjustLenLimitResponse::new(decision).into())
             .await?;
 

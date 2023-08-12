@@ -2,19 +2,17 @@ use std::sync::Arc;
 
 use crate::crypto::secrets::SessionSecrets;
 use crate::crypto::NONCE_LEN;
-use crate::proto::stream::{Plain, PlainStream, Secure, SecureStream};
+use crate::proto::stream::{PlainStream, SecureStream};
 use crate::{nil, plain, secure};
 
 
 pub trait State {}
 pub trait PlainState: State {
-    type PlainStream: Plain;
-    fn plain_stream(&mut self) -> Arc<Self::PlainStream>;
+    fn plain_stream(&mut self) -> Arc<PlainStream>;
 }
 pub trait SecureState: PlainState {
     type DowngradeState: PlainState;
-    type SecureStream: Secure;
-    fn secure_stream(&mut self) -> Arc<Self::SecureStream>;
+    fn secure_stream(&mut self) -> Arc<SecureStream>;
     fn downgrade(self) -> Self::DowngradeState;
 }
 
@@ -61,7 +59,7 @@ pub(super) struct UpgradedConnection(Arc<SecureStream>);
 secure!(UpgradedConnection);
 impl UpgradedConnection {
     pub(super) fn new(state: HandshakingConnection, session_secrets: SessionSecrets) -> Self {
-        Self(Arc::new(SecureStream::new(*state.0, session_secrets)))
+        Self(Arc::new(SecureStream::upgrade(state.0, session_secrets)))
     }
 }
 

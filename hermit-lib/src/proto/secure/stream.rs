@@ -1,38 +1,19 @@
-use std::pin::Pin;
+use std::sync::Arc;
 
 use serde::Serialize;
 
 use super::buffer::{ReadBuffer, WriteBuffer};
-use super::{header, message};
-use crate::proto::message::Message;
-use crate::proto::stream::{Plain, PlainStream};
+use crate::proto::stream::PlainStream;
 use crate::{crypto::secrets, error};
 
-pub trait Secure: Plain {
-    type SessionSecrets;
-    type PlainType: Plain;
-
-    fn upgrade(stream: Self::PlainType, secrets: Self::SessionSecrets) -> Self;
-    fn downgrade(self) -> Self::PlainType;
-}
-
 pub struct SecureStream {
-    stream: PlainStream,
+    stream: Arc<PlainStream>,
     session_secrets: secrets::SessionSecrets,
     read_buffer: ReadBuffer,
     write_buffer: WriteBuffer,
 }
 
 impl SecureStream {
-    pub(crate) fn new(stream: PlainStream, session_secrets: secrets::SessionSecrets) -> Self {
-        Self {
-            stream,
-            session_secrets,
-            read_buffer: ReadBuffer::new(),
-            write_buffer: WriteBuffer::new(),
-        }
-    }
-
     fn write(&mut self, secure_msg: impl Serialize) -> Result<(), error::Error> {
         ciborium::into_writer(&secure_msg, self).map_err(|err| match err {
             ciborium::ser::Error::Io(error) => error,
@@ -44,77 +25,18 @@ impl SecureStream {
     }
 }
 
-impl futures::stream::Stream for SecureStream {
-    type Item = Result<Message, error::Error>;
-
-    fn poll_next(mut self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Option<Self::Item>> {
-        Pin::new(&mut self.stream).poll_next(cx)
-    }
-}
-
-impl futures::sink::Sink<Message> for SecureStream {
-    type Error = error::Error;
-
-    fn poll_ready(mut self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
-        Pin::new(&mut self.stream).poll_ready(cx)
+impl SecureStream {
+    pub(crate) fn downgrade(self: Arc<Self>) -> Arc<PlainStream> {
+        self.stream.clone()
     }
 
-    fn start_send(mut self: std::pin::Pin<&mut Self>, item: Message) -> Result<(), Self::Error> {
-        Pin::new(&mut self.stream).start_send(item)
-    }
-
-    fn poll_flush(mut self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
-        Pin::new(&mut self.stream).poll_flush(cx)
-    }
-
-    fn poll_close(mut self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
-        Pin::new(&mut self.stream).poll_close(cx)
-    }
-}
-
-impl Plain for SecureStream {
-    fn set_len_limit(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        len_limit: usize,
-    ) -> std::task::Poll<()> {
-        todo!()
-    }
-}
-
-impl Secure for SecureStream {
-    type SessionSecrets = secrets::SessionSecrets;
-    type PlainType = PlainStream;
-
-    // fn send_secure(&mut self, secure_msg: impl message::Secure) -> Result<(), error::Error> {
-    //     // NOTE: The buffer is not flushed between the following two writes by `ciborium`.
-    //     self.write(secure_msg.header())?;
-    //     self.write(secure_msg)?;
-    //     let mut self_ref = self;
-    //     ciborium_io::Write::flush(&mut self_ref)?;
-    //     Ok(())
-    // }
-
-    // fn recv_secure_header(&mut self) -> Result<header::SecureMessageHeader, error::Error> {
-    //     ciborium::from_reader(self).map_err(|err| match err {
-    //         ciborium::de::Error::Io(error) => error,
-    //         others => error::InvalidMessageError::CborDeserialization(others.to_string()).into(),
-    //     })
-    // }
-
-    // fn recv_secure<S: message::Secure>(&mut self) -> Result<S, error::Error> {
-    //     ciborium::from_reader(self).map_err(|err| match err {
-    //         ciborium::de::Error::Io(error) => error,
-    //         others => error::InvalidMessageError::CborDeserialization(others.to_string()).into(),
-    //     })
-    // }
-
-    fn downgrade(self) -> Self::PlainType {
-        self.stream
-    }
-
-    fn upgrade(stream: Self::PlainType, secrets: secrets::SessionSecrets) -> Self {
-        Self::new(stream, secrets)
+    pub(crate) fn upgrade(stream: Arc<PlainStream>, session_secrets: secrets::SessionSecrets) -> Self {
+        Self {
+            stream,
+            session_secrets,
+            read_buffer: ReadBuffer::new(),
+            write_buffer: WriteBuffer::new(),
+        }
     }
 }
 
