@@ -2,13 +2,13 @@ use std::pin::Pin;
 
 pub use async_std::net::TcpStream;
 
-pub(crate) use crate::proto::plain::stream::PlainStream;
-pub(crate) use crate::proto::secure::stream::SecureStream;
+pub(crate) use crate::proto::plain::channel::PlainChannel;
+pub(crate) use crate::proto::secure::channel::SecureChannel;
 
 
-pub struct BaseStream(pub(crate) TcpStream);
+pub struct BaseChannel(pub(crate) TcpStream);
 
-impl futures_io::AsyncRead for &BaseStream {
+impl futures_io::AsyncRead for &BaseChannel {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
@@ -18,7 +18,7 @@ impl futures_io::AsyncRead for &BaseStream {
     }
 }
 
-impl futures_io::AsyncWrite for &BaseStream {
+impl futures_io::AsyncWrite for &BaseChannel {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,

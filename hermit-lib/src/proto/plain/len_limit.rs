@@ -1,26 +1,31 @@
 use serde::{Deserialize, Serialize};
 
 use super::header::PlainMessageType;
-use crate::plain_msg;
 use crate::proto::message::{MAX_LEN_LIMIT, MIN_LEN_LIMIT};
+use crate::{error, plain_msg};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub(crate) struct AdjustLenLimitRequest {
     len_limit: [u8; 2],
 }
 
-impl AdjustLenLimitRequest {
-    pub(crate) fn try_new(len_limit: usize) -> Option<Self> {
-        if !(MIN_LEN_LIMIT..=MAX_LEN_LIMIT).contains(&len_limit) {
-            return None;
-        }
-        Some(Self {
-            len_limit: (len_limit as u16).to_be_bytes(),
-        })
-    }
+impl TryFrom<usize> for AdjustLenLimitRequest {
+    type Error = error::LenLimitAdjustmentError;
 
-    pub(crate) fn len_limit(self) -> usize {
-        u16::from_be_bytes(self.len_limit) as usize
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        if !(MIN_LEN_LIMIT..=MAX_LEN_LIMIT).contains(&value) {
+            Err(error::LenLimitAdjustmentError::InvalidLimit(value))
+        } else {
+            Ok(Self {
+                len_limit: (value as u16).to_be_bytes(),
+            })
+        }
+    }
+}
+
+impl From<AdjustLenLimitRequest> for usize {
+    fn from(request: AdjustLenLimitRequest) -> Self {
+        u16::from_be_bytes(request.len_limit) as usize
     }
 }
 

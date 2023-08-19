@@ -1,266 +1,262 @@
-mod config;
+mod len_limit;
 mod server;
 mod state;
 
-use std::num::NonZeroUsize;
-use std::sync::Arc;
+use std::{
+    ops::{Deref, RangeInclusive},
+    sync::Arc,
+};
 
-use futures::SinkExt;
+use crate::proto::{
+    channel::{PlainChannel, SecureChannel},
+    message::{
+        self,
+        handshake::{ClientHelloMessage, DisconnectMessage, DowngradeMessage, ServerHelloMessage},
+        len_limit::{AdjustLenLimitRequest, AdjustLenLimitResponse},
+    },
+    Side,
+};
+use crate::{client::state::HandshakeContext, crypto, error};
 
-use crate::error::Error;
-use crate::proto::message::{handshake, len_limit, transfer};
-use crate::proto::stream::{BaseStream, PlainStream};
-use crate::proto::Side;
-use crate::{crypto, error};
+use self::{len_limit::LenLimit, server::ServerSigPubKey, state::State};
 
-use self::config::Config;
-use self::server::ServerSigPubKey;
-use self::state::*;
-
-pub struct Client<T: State> {
-    state: T,
-    conf: Config,
+pub struct Client {
+    channel: Arc<PlainChannel>,
+    state: State,
+    len_limit: LenLimit,
 }
 
-impl Client<NoConnection> {
-    fn new() -> Self {
+impl Client {
+    fn new(channel: Arc<PlainChannel>) -> Self {
         Self {
-            state: NoConnection,
-            conf: Config::default(),
+            channel,
+            state: State::default(),
+            len_limit: LenLimit::default(),
         }
     }
 
-    fn connect(self, stream: BaseStream) -> Client<InsecureConnection> {
-        let stream = PlainStream::new(stream, NonZeroUsize::new(2).unwrap());
-        Client {
-            // TODO: Custom limit multiplier
-            state: InsecureConnection::new(Arc::new(stream)),
-            conf: self.conf,
-        }
+    // NOTE: The final set range is the intersection of the requested range and the acceptable range.
+    fn adjust_acceptable_len_limit_range(
+        &mut self,
+        len_limit_range: RangeInclusive<usize>,
+    ) -> RangeInclusive<usize> {
+        let &lower_bound = len_limit_range.start().max(&message::MIN_LEN_LIMIT);
+        let &upper_bound = len_limit_range.end().min(&message::MAX_LEN_LIMIT);
+        let len_limit_range = lower_bound..=upper_bound;
+        self.len_limit.acceptable_range = len_limit_range.clone();
+        len_limit_range
     }
 }
 
-impl Client<InsecureConnection> {
-    async fn client_hello(mut self) -> Result<Client<HandshakingConnection>, (Self, Error)> {
-        let client_hello_result = async {
-            // Generate client nonce
-            let client_nonce = crypto::generate_nonce().await?;
+impl Client {
+    async fn client_hello(
+        &mut self,
+        server_sig_pub_key: ServerSigPubKey,
+    ) -> Option<Result<(), error::Error>> {
+        match self.state {
+            State::Insecure => {
+                let handshake_context_result = async {
+                    // Generate client nonce
+                    let client_nonce = crypto::generate_nonce().await?;
 
-            // Generate ephemeral key pair
-            let (client_private_key, public_key) = crypto::generate_ephemeral_key_pair()?;
+                    // Generate ephemeral key pair
+                    let (client_private_key, public_key) = crypto::generate_ephemeral_key_pair()?;
 
-            let client_hello_msg = handshake::ClientHelloMessage {
-                nonce: client_nonce,
-                // SAFETY: public key has the correct length
-                public_key_bytes: <[u8; crypto::X25519_PUBLIC_KEY_LEN]>::try_from(
-                    public_key.as_ref(),
-                )
-                .unwrap(),
-            };
+                    let client_hello_msg = ClientHelloMessage {
+                        nonce: client_nonce,
+                        // SAFETY: public key has the correct length
+                        public_key_bytes: <[u8; crypto::X25519_PUBLIC_KEY_LEN]>::try_from(
+                            public_key.as_ref(),
+                        )
+                        .unwrap(),
+                    };
 
-            self.state
-                .plain_stream()
-                .sink()
-                .await
-                .send(client_hello_msg.into())
+                    self.channel.send_msg(client_hello_msg).await?;
+
+                    self.state = State::Handshaking {
+                        handshake_context: HandshakeContext {
+                            nonce: client_nonce,
+                            private_key: client_private_key,
+                        },
+                        server_sig_pub_key,
+                    };
+                    Ok(())
+                }
+                .await;
+
+                Some(handshake_context_result)
+            }
+            _ => None,
+        }
+    }
+
+    async fn server_hello(
+        &mut self,
+        server_hello_msg: ServerHelloMessage,
+    ) -> Option<Result<(), error::Error>> {
+        let state = std::mem::take(&mut self.state);
+        match state {
+            State::Handshaking {
+                handshake_context,
+                server_sig_pub_key,
+            } => {
+                let server_hello_result = async {
+                    let HandshakeContext {
+                        nonce: client_nonce,
+                        private_key: client_private_key,
+                    } = handshake_context;
+
+                    // Verify
+                    let (server_public_key, nonces) = crypto::verify_server_hello(
+                        server_hello_msg,
+                        client_nonce,
+                        server_sig_pub_key.as_ref(),
+                    )?;
+
+                    // Generate session secrets
+                    let session_secrets = crypto::generate_session_secrets(
+                        client_private_key,
+                        server_public_key,
+                        nonces,
+                        Side::Client,
+                    )
+                    .await?;
+
+                    // Generate secure channel
+                    // If any previous error occurs, the state will be set to `Insecure` by `take`.
+                    self.state =
+                        State::Secure(SecureChannel::new(self.channel.clone(), session_secrets));
+                    Ok::<(), error::Error>(())
+                }
+                .await;
+
+                Some(server_hello_result)
+            }
+            _ => {
+                self.state = state;
+                None
+            }
+        }
+    }
+
+    async fn downgrade(&mut self) -> Option<Result<(), error::Error>> {
+        match &mut self.state {
+            State::Secure(_) => Some(self.channel.send_msg(DowngradeMessage).await),
+            _ => None,
+        }
+    }
+
+    async fn close(self) -> Result<(), error::Error> {
+        self.channel.send_msg(DisconnectMessage).await
+    }
+
+    async fn request_len_limit(&mut self, len_limit: usize) -> Result<(), error::Error> {
+        async fn helper(
+            channel: &PlainChannel,
+            len_limit: usize,
+            requested: &mut Option<usize>,
+        ) -> Result<(), error::Error> {
+            // Per specificiation, return an error if there is an ongoing request.
+            if let Some(len_limit) = requested {
+                return Err(error::LenLimitAdjustmentError::OngoingRequest(*len_limit).into());
+            }
+
+            channel
+                .send_msg(AdjustLenLimitRequest::try_from(len_limit)?)
                 .await?;
 
-            Ok::<HandshakeContext, Error>(HandshakeContext {
-                nonce: client_nonce,
-                private_key: client_private_key,
-            })
+            *requested = Some(len_limit);
+            Ok(())
         }
-        .await;
-
-        match client_hello_result {
-            Ok(handshake_context) => Ok(Client {
-                conf: self.conf,
-                state: HandshakingConnection::new(self.state, handshake_context),
-            }),
-            Err(error) => Err((self, error)),
-        }
-    }
-}
-
-impl Client<HandshakingConnection> {
-    async fn server_hello(
-        mut self,
-        server_hello_msg: handshake::ServerHelloMessage,
-        server_sig_pub_key: ServerSigPubKey,
-    ) -> Result<Client<UpgradedConnection>, (Client<InsecureConnection>, Error)> {
-        let server_hello_result = async {
-            // SAFETY: private key has not been taken out before
-            let HandshakeContext {
-                nonce: client_nonce,
-                private_key: client_private_key,
-            } = self.state.context().unwrap();
-
-            // Verify
-            let (server_public_key, nonces) = crypto::verify_server_hello(
-                server_hello_msg,
-                client_nonce,
-                server_sig_pub_key.as_ref(),
-            )?;
-
-            // Generate session secrets
-            let session_secrets = crypto::generate_session_secrets(
-                client_private_key,
-                server_public_key,
-                nonces,
-                Side::Client,
-            )
-            .await?;
-
-            Ok::<crypto::secrets::SessionSecrets, Error>(session_secrets)
-        }
-        .await;
-
-        match server_hello_result {
-            Ok(session_secrets) => Ok(Client {
-                state: UpgradedConnection::new(self.state, session_secrets),
-                conf: self.conf,
-            }),
-            Err(error) => Err((
-                Client {
-                    state: self.state.failed(),
-                    conf: self.conf,
-                },
-                error,
-            )),
-        }
-    }
-}
-
-// Only the (idle secure) `UpgradeConnection` state can send / receive secure messages
-// to transition to a different state type. As secure stream may not interleave messages
-// with different types, cf. plain stream, where each message is discrete.
-impl Client<UpgradedConnection> {
-    async fn send_resource_request(
-        mut self,
-        request: transfer::SendResourceRequest,
-    ) -> Result<Client<SendResourceRequested>, (Self, Error)> {
-        todo!()
-    }
-
-    async fn receive_resource_request(mut self) -> Result<Client<ReceiveResourceRequested>, Error> {
-        todo!()
-    }
-}
-
-impl<S: PlainState, T: SecureState<DowngradeState = S>> Client<T> {
-    async fn downgrade(mut self) -> Result<Client<S>, Error> {
-        self.state
-            .plain_stream()
-            .sink()
-            .await
-            .send(handshake::DowngradeMessage.into())
-            .await?;
-
-        Ok(Client {
-            state: self.state.downgrade(),
-            conf: self.conf,
-        })
-    }
-}
-
-impl<T: PlainState> Client<T> {
-    async fn disconnect(mut self) -> Result<Client<NoConnection>, Error> {
-        self.state
-            .plain_stream()
-            .sink()
-            .await
-            .send(handshake::DisconnectMessage.into())
-            .await?;
-
-        Ok(Client {
-            state: NoConnection,
-            conf: Config::default(),
-        })
-    }
-
-    // READ: proto/message/msg_len_limit.md for more information.
-
-    async fn request_len_limit(&mut self, len_limit: usize) -> Result<(), Error> {
-        // Per specificiation, return an error if there is an ongoing request.
-        if let Some(len_limit) = self.conf.requested_len_limit {
-            return Err(error::LenLimitAdjustmentError::OngoingRequest(len_limit).into());
-        }
-
-        self.state
-            .plain_stream()
-            .sink()
-            .await
-            .send(
-                len_limit::AdjustLenLimitRequest::try_new(len_limit)
-                    .ok_or(error::LenLimitAdjustmentError::InvalidLimit(len_limit))?
-                    .into(),
-            )
-            .await?;
-
-        self.conf.requested_len_limit = Some(len_limit);
-        Ok(())
-    }
-
-    async fn request_len_limit_responded(
-        &mut self,
-        response: len_limit::AdjustLenLimitResponse,
-    ) -> Result<(), Error> {
-        let len_limit = self
-            .conf
-            .requested_len_limit
-            .take()
-            .ok_or(error::LenLimitAdjustmentError::NoOngoingRequest)?;
-
-        if response.has_accepted() {
-            self.state.plain_stream().set_len_limit(len_limit);
-        }
-
-        Ok(())
+        helper(
+            self.channel.deref(),
+            len_limit,
+            &mut self.len_limit.requested,
+        )
+        .await
     }
 
     async fn respond_len_limit(
         &mut self,
-        request: len_limit::AdjustLenLimitRequest,
-        decision_callback: impl FnOnce(usize) -> bool,
-    ) -> Result<(), Error> {
-        let decision = if self.conf.requested_len_limit.is_some() {
-            false
+        request: AdjustLenLimitRequest,
+    ) -> Result<(), error::Error> {
+        async fn helper(
+            channel: &PlainChannel,
+            len_limit: &LenLimit,
+            request: usize,
+        ) -> Result<Option<usize>, error::Error> {
+            // Per specificiation, reject if there is an ongoing request.
+            let has_accepted =
+                len_limit.requested.is_none() && len_limit.acceptable_range.contains(&request);
+
+            channel
+                .send_msg(AdjustLenLimitResponse::new(has_accepted))
+                .await?;
+
+            Ok(if has_accepted { Some(request) } else { None })
+        }
+
+        let helper_result = helper(self.channel.deref(), &self.len_limit, request.into()).await;
+        if let Ok(Some(len_limit)) = helper_result {
+            self.channel.set_len_limit(len_limit).await;
+        }
+
+        helper_result.map(|_| ())
+    }
+
+    async fn request_len_limit_responded(
+        &mut self,
+        response: AdjustLenLimitResponse,
+    ) -> Result<(), error::Error> {
+        if let Some(len_limit) = self.len_limit.requested.take() {
+            if response.has_accepted() {
+                self.channel.set_len_limit(len_limit).await;
+            }
+            Ok(())
         } else {
-            decision_callback(request.len_limit())
-        };
-
-        self.state
-            .plain_stream()
-            .sink()
-            .await
-            .send(len_limit::AdjustLenLimitResponse::new(decision).into())
-            .await?;
-
-        Ok(())
+            Err(error::LenLimitAdjustmentError::NoOngoingRequest.into())
+        }
     }
 }
 
-#[cfg(test)]
-mod test {
-    use async_std::{net::TcpListener, task};
+//     async fn request_len_limit_responded(
+//         &mut self,
+//         response: len_limit::AdjustLenLimitResponse,
+//     ) -> Result<(), Error> {
+//         let len_limit = self
+//             .conf
+//             .requested_len_limit
+//             .take()
+//             .ok_or(error::LenLimitAdjustmentError::NoOngoingRequest)?;
 
-    use super::*;
+//         if response.has_accepted() {
+//             self.state.plain_stream().set_len_limit(len_limit);
+//         }
 
-    // NOTE: run after command `netcat -l 8080` is executed to listen on TCP port 8080
-    #[ignore]
-    #[async_std::test]
-    async fn test_client_new() {
-        task::spawn(async {
-            TcpListener::bind("127.0.0.1:8080")
-                .await
-                .unwrap()
-                .accept()
-                .await
-                .unwrap()
-        });
-        let tcp_stream = async_std::net::TcpStream::connect("127.0.0.1:8080")
-            .await
-            .unwrap();
-        let client = Client::new().connect(BaseStream(tcp_stream));
-    }
-}
+//         Ok(())
+//     }
+
+// #[cfg(test)]
+// mod test {
+//     use async_std::{net::TcpListener, task};
+
+//     use super::*;
+
+//     // NOTE: run after command `netcat -l 8080` is executed to listen on TCP port 8080
+//     #[ignore]
+//     #[async_std::test]
+//     async fn test_client_new() {
+//         task::spawn(async {
+//             TcpListener::bind("127.0.0.1:8080")
+//                 .await
+//                 .unwrap()
+//                 .accept()
+//                 .await
+//                 .unwrap()
+//         });
+//         let tcp_stream = async_std::net::TcpStream::connect("127.0.0.1:8080")
+//             .await
+//             .unwrap();
+//         let client = Client::new().connect(BaseStream(tcp_stream));
+//     }
+// }

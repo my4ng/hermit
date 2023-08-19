@@ -1,7 +1,7 @@
 pub(crate) mod message;
 mod plain;
 mod secure;
-pub(crate) mod stream;
+pub(crate) mod channel;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
