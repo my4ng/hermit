@@ -75,7 +75,7 @@ impl PlainChannel {
         Ok(())
     }
 
-    async fn ready(&self) -> Result<(), error::Error> {
+    async fn inner_ready(&self) -> Result<(), error::Error> {
         let mut inner_sink = self.inner_sink.lock().await;
         // NOTE: A conservative approach is used here such that it is guaranteed that the
         //       `self.send_state.total_byte_len` will never exceed `self.send_state.byte_limit`
@@ -89,7 +89,7 @@ impl PlainChannel {
         Ok(())
     }
 
-    async fn flush(&mut self) -> Result<(), error::Error> {
+    async fn inner_flush(&self) -> Result<(), error::Error> {
         let mut inner_sink = self.inner_sink.lock().await;
         while !inner_sink.queue.is_empty() {
             Self::send(&self.base_stream, &mut inner_sink).await?;
@@ -137,13 +137,13 @@ impl Sink<Message> for &PlainChannel {
     type Error = error::Error;
 
     fn poll_ready(
-        mut self: std::pin::Pin<&mut Self>,
+        self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Result<(), Self::Error>> {
-        pin!(self.ready()).as_mut().poll(cx)
+        pin!(self.inner_ready()).as_mut().poll(cx)
     }
 
-    fn start_send(mut self: std::pin::Pin<&mut Self>, item: Message) -> Result<(), Self::Error> {
+    fn start_send(self: std::pin::Pin<&mut Self>, item: Message) -> Result<(), Self::Error> {
         task::block_on(async {
             let mut inner_sink = self.inner_sink.lock().await;
             inner_sink.total_byte_len += item.byte_len();
@@ -156,7 +156,7 @@ impl Sink<Message> for &PlainChannel {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Result<(), Self::Error>> {
-        pin!(self.flush()).as_mut().poll(cx)
+        pin!(self.inner_flush()).as_mut().poll(cx)
     }
 
     fn poll_close(
