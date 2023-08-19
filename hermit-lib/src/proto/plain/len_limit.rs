@@ -5,7 +5,7 @@ use crate::proto::message::{MAX_LEN_LIMIT, MIN_LEN_LIMIT};
 use crate::{error, plain_msg};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
-pub(crate) struct AdjustLenLimitRequest {
+pub struct AdjustLenLimitRequest {
     len_limit: [u8; 2],
 }
 
@@ -34,19 +34,21 @@ plain_msg!(AdjustLenLimitRequest, PlainMessageType::AdjustLenLimitRequest, 2 =>
 );
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
-pub(crate) struct AdjustLenLimitResponse {
+pub struct AdjustLenLimitResponse {
     has_accepted: [u8; 1],
 }
 
-impl AdjustLenLimitResponse {
-    pub fn new(has_accepted: bool) -> Self {
+impl From<bool> for AdjustLenLimitResponse {
+    fn from(value: bool) -> Self {
         Self {
-            has_accepted: if has_accepted { [1] } else { [0] },
+            has_accepted: [value as u8],
         }
     }
+}
 
-    pub fn has_accepted(self) -> bool {
-        self.has_accepted[0] == 1
+impl From<AdjustLenLimitResponse> for bool {
+    fn from(response: AdjustLenLimitResponse) -> Self {
+        response.has_accepted[0] != 0
     }
 }
 

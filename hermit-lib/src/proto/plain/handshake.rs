@@ -6,7 +6,7 @@ pub(crate) const SERVER_HELLO_MSG_LEN: usize =
     crypto::NONCE_LEN + crypto::X25519_PUBLIC_KEY_LEN + crypto::ED25519_SIGNATURE_LEN;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ClientHelloMessage {
+pub struct ClientHelloMessage {
     pub(crate) nonce: [u8; crypto::NONCE_LEN],
     pub(crate) public_key_bytes: [u8; crypto::X25519_PUBLIC_KEY_LEN],
 }
@@ -17,7 +17,7 @@ plain_msg!(ClientHelloMessage, PlainMessageType::ClientHello, CLIENT_HELLO_MSG_L
 );
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ServerHelloMessage {
+pub struct ServerHelloMessage {
     pub(crate) nonce: [u8; crypto::NONCE_LEN],
     pub(crate) public_key_bytes: [u8; crypto::X25519_PUBLIC_KEY_LEN],
     pub(crate) signature: [u8; crypto::ED25519_SIGNATURE_LEN],
@@ -30,12 +30,12 @@ plain_msg!(ServerHelloMessage, PlainMessageType::ServerHello, SERVER_HELLO_MSG_L
 );
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DisconnectMessage;
+pub struct DisconnectMessage;
 
 plain_msg!(DisconnectMessage, PlainMessageType::Disconnect);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DowngradeMessage;
+pub struct DowngradeMessage;
 
 plain_msg!(DowngradeMessage, PlainMessageType::Downgrade);
 
