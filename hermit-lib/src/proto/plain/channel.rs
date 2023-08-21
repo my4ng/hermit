@@ -10,8 +10,8 @@ use futures::{AsyncReadExt, AsyncWriteExt, Future, Sink, SinkExt, Stream, Stream
 use super::header::MSG_HEADER_LEN;
 use super::message::Message;
 use crate::error;
-use crate::proto::message::{MAX_LEN_LIMIT, MIN_LEN_LIMIT};
 use crate::proto::channel::BaseChannel;
+use crate::proto::message::{MAX_LEN_LIMIT, MIN_LEN_LIMIT};
 
 struct InnerSink {
     queue: VecDeque<Message>,
@@ -35,16 +35,16 @@ impl InnerSink {
 struct InnerStream;
 
 pub struct PlainChannel {
-    base_stream: BaseChannel,
+    base_channel: BaseChannel,
     len_limit: RwLock<usize>,
     inner_stream: Mutex<InnerStream>,
     inner_sink: Mutex<InnerSink>,
 }
 
 impl PlainChannel {
-    pub(crate) fn new(base_stream: BaseChannel, limit_multiplier: NonZeroUsize) -> Self {
+    pub(crate) fn new(base_channel: BaseChannel, limit_multiplier: NonZeroUsize) -> Self {
         Self {
-            base_stream,
+            base_channel,
             len_limit: RwLock::new(MIN_LEN_LIMIT),
             inner_stream: Mutex::new(InnerStream),
             inner_sink: Mutex::new(InnerSink::new(limit_multiplier)),
@@ -59,17 +59,17 @@ impl PlainChannel {
 
     // PRECONDITION: `self.send_state.queue` is not empty.
     async fn send(
-        mut stream: &BaseChannel,
+        mut channel: &BaseChannel,
         sink: &mut MutexGuard<'_, InnerSink>,
     ) -> Result<(), error::Error> {
         let message = sink.queue.pop_front().unwrap();
 
-        stream
+        channel
             .write_all(&<[u8; MSG_HEADER_LEN]>::from(message.header()))
             .await?;
 
-        stream.write_all(message.as_ref()).await?;
-        stream.flush().await?;
+        channel.write_all(message.as_ref()).await?;
+        channel.flush().await?;
 
         sink.total_byte_len -= message.byte_len();
         Ok(())
@@ -84,7 +84,7 @@ impl PlainChannel {
 
         while inner_sink.total_byte_len + len_limit > len_limit * inner_sink.limit_multiplier.get()
         {
-            Self::send(&self.base_stream, &mut inner_sink).await?;
+            Self::send(&self.base_channel, &mut inner_sink).await?;
         }
         Ok(())
     }
@@ -92,22 +92,28 @@ impl PlainChannel {
     async fn inner_flush(&self) -> Result<(), error::Error> {
         let mut inner_sink = self.inner_sink.lock().await;
         while !inner_sink.queue.is_empty() {
-            Self::send(&self.base_stream, &mut inner_sink).await?;
+            Self::send(&self.base_channel, &mut inner_sink).await?;
         }
         Ok(())
     }
 
     async fn recv(&self) -> Result<Message, error::Error> {
         self.inner_stream.lock().await;
-        let mut stream = &self.base_stream;
+        let mut channel = &self.base_channel;
 
         let mut header = [0u8; MSG_HEADER_LEN];
-        stream.read_exact(&mut header).await?;
+        channel.read_exact(&mut header).await?;
 
         let mut message = Message::raw(&header)?;
-        stream.read_exact(message.as_mut()).await?;
+        channel.read_exact(message.as_mut()).await?;
 
         Ok(message)
+    }
+
+    async fn inner_close(&self) -> Result<(), error::Error> {
+        self.inner_flush().await?;
+        (&self.base_channel).close().await?;
+        Ok(())
     }
 
     // SANITY CHECK
@@ -153,7 +159,7 @@ impl Sink<Message> for &PlainChannel {
     }
 
     fn poll_flush(
-        mut self: std::pin::Pin<&mut Self>,
+        self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Result<(), Self::Error>> {
         pin!(self.inner_flush()).as_mut().poll(cx)
@@ -164,7 +170,7 @@ impl Sink<Message> for &PlainChannel {
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Result<(), Self::Error>> {
         // TODO: Send a disconnect message as well??
-        self.poll_flush(cx)
+        pin!(self.inner_close()).as_mut().poll(cx)
     }
 }
 
@@ -187,7 +193,10 @@ impl Stream for &PlainChannel {
 }
 
 impl PlainChannel {
-    pub(crate) async fn send_msg(mut self: &Self, message: impl Into<Message>) -> Result<(), error::Error> {
+    pub(crate) async fn send_msg(
+        mut self: &Self,
+        message: impl Into<Message>,
+    ) -> Result<(), error::Error> {
         <&Self as SinkExt<Message>>::send(&mut self, message.into()).await
     }
 

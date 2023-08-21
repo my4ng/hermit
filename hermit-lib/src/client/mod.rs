@@ -16,6 +16,9 @@ use crate::{client::state::HandshakeContext, crypto, error};
 
 use self::{len_limit::LenLimit, server::ServerSigPubKey, state::State};
 
+// NOTE: `Client` should be wrapped in a `RwLock` to allow concurrent access, where
+// functions that do not mutate the state/len_limit may take a read lock, giving precedence
+// to functions that do mutate via a write lock.
 pub struct Client {
     channel: Arc<PlainChannel>,
     state: State,
